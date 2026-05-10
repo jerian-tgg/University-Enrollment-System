@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+:root {
+  --edu-primary: #1a3a6b;
+  --edu-primary-2: #1e4d8c;
+  --edu-gold: #c9a227;
+  --edu-bg: #f8f9fc;
+  --edu-text: #2d3748;
+}
+
+@theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  background: var(--edu-bg);
+  color: var(--edu-text);
+}
+
+@keyframes toast-slide-in {
+  from {
+    transform: translateX(110%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.toast-enter {
+  animation: toast-slide-in 220ms ease-out;
+}
