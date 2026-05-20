@@ -35,7 +35,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <section className="overflow-hidden rounded-2xl bg-gradient-to-r from-[#1a3a6b] to-[#1e4d8c] p-6 text-white shadow-lg">
+      <section className="overflow-hidden rounded-2xl bg-linear-to-r from-[#1a3a6b] to-[#1e4d8c] p-6 text-white shadow-lg">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
             <div className="mt-0.5 rounded-xl bg-white/10 p-2">
