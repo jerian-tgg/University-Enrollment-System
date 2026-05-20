@@ -1,3 +1,7 @@
+import {
+  countActiveEnrollmentsForCourse,
+  getEnrollmentSchemaMode,
+} from "@/lib/supabase/enrollment-schema";
 import { createServerSupabase } from "@/lib/supabase/server";
 import type { CourseRow } from "@/lib/supabase/rows";
 
@@ -38,18 +42,16 @@ export async function assertCanEnroll(studentId: string, courseId: string): Prom
     throw new ApiHttpError("Student not found", 404);
   }
 
-  const { count: activeCount, error: countErr } = await sb
-    .from("enrollments")
-    .select("*", { count: "exact", head: true })
-    .eq("course_id", courseId)
-    .eq("status", "enrolled");
+  const { count: activeCount, error: countErr } = await countActiveEnrollmentsForCourse(sb, courseId);
 
   if (countErr) throw countErr;
   if ((activeCount ?? 0) >= c.capacity) {
     throw new ApiHttpError("Course is at capacity", 409);
   }
 
-  if (c.prerequisite_id) {
+  const schemaMode = await getEnrollmentSchemaMode(sb);
+
+  if (c.prerequisite_id && schemaMode === "full") {
     const { data: prereqEnroll, error: prereqErr } = await sb
       .from("enrollments")
       .select("grade")
@@ -70,18 +72,26 @@ export async function assertCanEnroll(studentId: string, courseId: string): Prom
 
   const { data: existing, error: existingErr } = await sb
     .from("enrollments")
-    .select("status")
+    .select(schemaMode === "full" ? "status" : "id")
     .eq("student_id", studentId)
     .eq("course_id", courseId)
     .maybeSingle();
 
   if (existingErr) throw existingErr;
 
-  if (existing?.status === "enrolled") {
+  if (schemaMode === "legacy") {
+    if (existing) {
+      throw new ApiHttpError("Student is already enrolled in this course", 409);
+    }
+    return;
+  }
+
+  const status = (existing as { status?: string } | null)?.status;
+  if (status === "enrolled") {
     throw new ApiHttpError("Student is already enrolled in this course", 409);
   }
 
-  if (existing?.status === "completed") {
+  if (status === "completed") {
     throw new ApiHttpError("Enrollment already completed for this course", 409);
   }
 }

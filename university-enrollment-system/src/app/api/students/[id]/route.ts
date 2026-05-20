@@ -1,8 +1,8 @@
-import { jsonError, jsonOk } from "@/lib/api/json";
+import { jsonError, jsonFromPostgrestError, jsonOk } from "@/lib/api/json";
+import { getStudentSchemaMode, toStudentRow } from "@/lib/supabase/enrollment-schema";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { isUniqueViolation } from "@/lib/supabase/errors";
 import { mapStudent } from "@/lib/supabase/mappers";
-import type { StudentRow } from "@/lib/supabase/rows";
 import { z } from "zod";
 
 const updateSchema = z.object({
@@ -17,12 +17,13 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(_req: Request, { params }: Params) {
   const { id } = await params;
   const sb = createServerSupabase();
+  const schemaMode = await getStudentSchemaMode(sb);
   const { data, error } = await sb.from("students").select("*").eq("id", id).maybeSingle();
 
-  if (error) return jsonError(error.message, 500);
+  if (error) return jsonFromPostgrestError(error);
   if (!data) return jsonError("Student not found", 404);
 
-  return jsonOk(mapStudent(data as StudentRow));
+  return jsonOk(mapStudent(toStudentRow(data as Record<string, unknown>, schemaMode)));
 }
 
 export async function PUT(req: Request, { params }: Params) {
@@ -40,14 +41,22 @@ export async function PUT(req: Request, { params }: Params) {
   }
 
   const sb = createServerSupabase();
-  const { data: existing, error: exErr } = await sb.from("students").select("id").eq("id", id).maybeSingle();
-  if (exErr) return jsonError(exErr.message, 500);
+  const schemaMode = await getStudentSchemaMode(sb);
+  const { data: existing, error: exErr } = await sb.from("students").select("*").eq("id", id).maybeSingle();
+  if (exErr) return jsonFromPostgrestError(exErr);
   if (!existing) return jsonError("Student not found", 404);
 
   const patch: Record<string, unknown> = {};
-  if (parsed.data.studentId !== undefined) patch.student_id = parsed.data.studentId;
-  if (parsed.data.firstName !== undefined) patch.first_name = parsed.data.firstName;
-  if (parsed.data.lastName !== undefined) patch.last_name = parsed.data.lastName;
+  if (schemaMode === "full") {
+    if (parsed.data.studentId !== undefined) patch.student_id = parsed.data.studentId;
+    if (parsed.data.firstName !== undefined) patch.first_name = parsed.data.firstName;
+    if (parsed.data.lastName !== undefined) patch.last_name = parsed.data.lastName;
+  } else {
+    const current = toStudentRow(existing as Record<string, unknown>, schemaMode);
+    const firstName = parsed.data.firstName ?? current.first_name;
+    const lastName = parsed.data.lastName ?? current.last_name;
+    patch.name = `${firstName} ${lastName}`.trim();
+  }
   if (parsed.data.email !== undefined) patch.email = parsed.data.email;
 
   const { data, error } = await sb.from("students").update(patch).eq("id", id).select("*").single();
@@ -56,10 +65,10 @@ export async function PUT(req: Request, { params }: Params) {
     if (isUniqueViolation(error)) {
       return jsonError("Student ID must be unique", 409);
     }
-    return jsonError(error.message, 500);
+    return jsonFromPostgrestError(error);
   }
 
-  return jsonOk(mapStudent(data as StudentRow));
+  return jsonOk(mapStudent(toStudentRow(data as Record<string, unknown>, schemaMode)));
 }
 
 export async function DELETE(_req: Request, { params }: Params) {

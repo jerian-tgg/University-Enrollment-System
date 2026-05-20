@@ -1,13 +1,20 @@
-import { jsonError, jsonOk } from "@/lib/api/json";
+import { jsonError, jsonFromPostgrestError, jsonOk } from "@/lib/api/json";
 import { formatGrade } from "@/lib/format";
+import {
+  enrollmentOrderColumn,
+  getEnrollmentSchemaMode,
+  getStudentSchemaMode,
+  mapEnrollmentRow,
+  toStudentRow,
+} from "@/lib/supabase/enrollment-schema";
 import { createServerSupabase } from "@/lib/supabase/server";
-import type { EnrollmentRow, StudentRow } from "@/lib/supabase/rows";
+import type { StudentRow } from "@/lib/supabase/rows";
 import { enrollmentStatusOrThrow } from "@/lib/supabase/rows";
 import type { ApiCourseStudent } from "@/lib/types/api";
 
 type Params = { params: Promise<{ id: string }> };
 
-type RowWithStudent = EnrollmentRow & { students: StudentRow | StudentRow[] | null };
+type RowWithStudent = Record<string, unknown> & { students: StudentRow | StudentRow[] | null };
 
 function oneStudent(s: StudentRow | StudentRow[] | null): StudentRow | null {
   if (!s) return null;
@@ -22,20 +29,26 @@ export async function GET(_req: Request, { params }: Params) {
   if (cErr) return jsonError(cErr.message, 500);
   if (!course) return jsonError("Course not found", 404);
 
+  const [schemaMode, studentMode] = await Promise.all([
+    getEnrollmentSchemaMode(sb),
+    getStudentSchemaMode(sb),
+  ]);
   const { data: rows, error } = await sb
     .from("enrollments")
-    .select("*, students!enrollments_student_id_fkey(*)")
+    .select("*, students(*)")
     .eq("course_id", id)
-    .order("enrolled_at", { ascending: false });
+    .order(enrollmentOrderColumn(schemaMode), { ascending: false });
 
-  if (error) return jsonError(error.message, 500);
+  if (error) return jsonFromPostgrestError(error);
 
   const list = (rows as RowWithStudent[] | null) ?? [];
   const out: ApiCourseStudent[] = [];
 
-  for (const e of list) {
-    const st = oneStudent(e.students);
-    if (!st) return jsonError("Enrollment missing student join", 500);
+  for (const raw of list) {
+    const e = mapEnrollmentRow(raw, schemaMode);
+    const stRaw = oneStudent(raw.students);
+    if (!stRaw) return jsonError("Enrollment missing student join", 500);
+    const st = toStudentRow(stRaw as Record<string, unknown>, studentMode);
     out.push({
       enrollmentId: e.id,
       studentId: st.id,

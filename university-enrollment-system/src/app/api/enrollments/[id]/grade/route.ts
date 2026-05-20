@@ -1,5 +1,14 @@
-import { jsonError, jsonOk } from "@/lib/api/json";
+import { jsonError, jsonFromPostgrestError, jsonOk } from "@/lib/api/json";
 import { formatGrade } from "@/lib/format";
+import {
+  getCourseSchemaMode,
+  getEnrollmentSchemaMode,
+  getStudentSchemaMode,
+  mapEnrollmentRow,
+  MIGRATION_HINT,
+  toCourseRow,
+  toStudentRow,
+} from "@/lib/supabase/enrollment-schema";
 import { createServerSupabase } from "@/lib/supabase/server";
 import type { CourseRow, EnrollmentRow, StudentRow } from "@/lib/supabase/rows";
 import { enrollmentStatusOrThrow } from "@/lib/supabase/rows";
@@ -36,9 +45,13 @@ export async function PUT(req: Request, { params }: Params) {
   }
 
   const sb = createServerSupabase();
+  const schemaMode = await getEnrollmentSchemaMode(sb);
+  if (schemaMode === "legacy") {
+    return jsonError(MIGRATION_HINT, 503);
+  }
 
   const { data: enrollment, error: fErr } = await sb.from("enrollments").select("*").eq("id", id).maybeSingle();
-  if (fErr) return jsonError(fErr.message, 500);
+  if (fErr) return jsonFromPostgrestError(fErr);
   if (!enrollment) return jsonError("Enrollment not found", 404);
 
   const e = enrollment as EnrollmentRow;
@@ -58,18 +71,26 @@ export async function PUT(req: Request, { params }: Params) {
     .from("enrollments")
     .update({ grade: g.toFixed(2), status: nextStatus })
     .eq("id", id)
-    .select("*, students!enrollments_student_id_fkey(*), courses!enrollments_course_id_fkey(*)")
+    .select("*, students(*), courses(*)")
     .single();
 
-  if (uErr) return jsonError(uErr.message, 500);
+  if (uErr) return jsonFromPostgrestError(uErr);
 
   const row = updated as RowFull;
-  const st = one(row.students);
-  const co = one(row.courses);
-  if (!st || !co) return jsonError("Enrollment join incomplete", 500);
+  const stRaw = one(row.students);
+  const coRaw = one(row.courses);
+  if (!stRaw || !coRaw) return jsonError("Enrollment join incomplete", 500);
+
+  const [studentMode, courseMode] = await Promise.all([
+    getStudentSchemaMode(sb),
+    getCourseSchemaMode(sb),
+  ]);
+  const st = toStudentRow(stRaw as Record<string, unknown>, studentMode);
+  const co = toCourseRow(coRaw as Record<string, unknown>, courseMode);
+  const mapped = mapEnrollmentRow(row as unknown as Record<string, unknown>, "full");
 
   return jsonOk({
-    id: row.id,
+    id: mapped.id,
     studentId: st.id,
     studentCatalogId: st.student_id,
     studentName: `${st.first_name} ${st.last_name}`,
@@ -77,8 +98,8 @@ export async function PUT(req: Request, { params }: Params) {
     courseId: co.id,
     courseCode: co.course_code,
     courseTitle: co.title,
-    status: enrollmentStatusOrThrow(row.status),
-    grade: formatGrade(row.grade),
-    enrolledAt: row.enrolled_at,
+    status: enrollmentStatusOrThrow(mapped.status),
+    grade: formatGrade(mapped.grade),
+    enrolledAt: mapped.enrolled_at,
   });
 }

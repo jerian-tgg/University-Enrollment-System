@@ -1,4 +1,5 @@
-import { jsonOk } from "@/lib/api/json";
+import { jsonFromPostgrestError, jsonOk } from "@/lib/api/json";
+import { countEnrollmentsByStatus } from "@/lib/supabase/enrollment-schema";
 import { createServerSupabase } from "@/lib/supabase/server";
 
 export async function GET() {
@@ -7,20 +8,14 @@ export async function GET() {
   const [students, courses, active, completed] = await Promise.all([
     sb.from("students").select("*", { count: "exact", head: true }),
     sb.from("courses").select("*", { count: "exact", head: true }),
-    sb
-      .from("enrollments")
-      .select("*", { count: "exact", head: true })
-      .eq("status", "enrolled"),
-    sb
-      .from("enrollments")
-      .select("*", { count: "exact", head: true })
-      .eq("status", "completed"),
+    countEnrollmentsByStatus(sb, "enrolled"),
+    countEnrollmentsByStatus(sb, "completed"),
   ]);
 
-  if (students.error) return Response.json({ error: students.error.message }, { status: 500 });
-  if (courses.error) return Response.json({ error: courses.error.message }, { status: 500 });
-  if (active.error) return Response.json({ error: active.error.message }, { status: 500 });
-  if (completed.error) return Response.json({ error: completed.error.message }, { status: 500 });
+  if (students.error) return jsonFromPostgrestError(students.error);
+  if (courses.error) return jsonFromPostgrestError(courses.error);
+  if (active.error) return jsonFromPostgrestError(active.error);
+  if (completed.error) return jsonFromPostgrestError(completed.error);
 
   return jsonOk({
     totalStudents: students.count ?? 0,

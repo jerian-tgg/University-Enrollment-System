@@ -7,18 +7,34 @@ import type {
   ApiCourseStudent,
 } from "@/lib/types/api";
 
+function errorMessageFromBody(data: unknown, res: Response): string {
+  if (data && typeof data === "object" && data !== null && "error" in data) {
+    const msg = String((data as { error: unknown }).error).trim();
+    if (msg) return msg;
+  }
+  const statusText = res.statusText.trim();
+  if (statusText) return statusText;
+  return `Request failed (${res.status})`;
+}
+
 async function parseResponse<T>(res: Response): Promise<T> {
   if (res.status === 204) {
     return undefined as T;
   }
   const text = await res.text();
-  const data = text ? (JSON.parse(text) as unknown) : null;
+  let data: unknown = null;
+  if (text) {
+    try {
+      data = JSON.parse(text) as unknown;
+    } catch {
+      if (!res.ok) {
+        throw new Error(text.trim().slice(0, 200) || `Request failed (${res.status})`);
+      }
+      throw new Error("Invalid JSON response from server");
+    }
+  }
   if (!res.ok) {
-    const message =
-      data && typeof data === "object" && data !== null && "error" in data
-        ? String((data as { error: unknown }).error)
-        : res.statusText;
-    throw new Error(message || "Request failed");
+    throw new Error(errorMessageFromBody(data, res));
   }
   return data as T;
 }

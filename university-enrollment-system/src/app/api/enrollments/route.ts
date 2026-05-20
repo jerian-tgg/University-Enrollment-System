@@ -1,13 +1,21 @@
-import { jsonError, jsonOk } from "@/lib/api/json";
+import { jsonError, jsonFromPostgrestError, jsonOk } from "@/lib/api/json";
 import { formatGrade } from "@/lib/format";
+import {
+  enrollmentOrderColumn,
+  getCourseSchemaMode,
+  getEnrollmentSchemaMode,
+  getStudentSchemaMode,
+  mapEnrollmentRow,
+  toCourseRow,
+  toStudentRow,
+} from "@/lib/supabase/enrollment-schema";
 import { createServerSupabase } from "@/lib/supabase/server";
-import type { CourseRow, EnrollmentRow, StudentRow } from "@/lib/supabase/rows";
 import { enrollmentStatusOrThrow } from "@/lib/supabase/rows";
 import type { ApiEnrollmentRow } from "@/lib/types/api";
 
-type RowFull = EnrollmentRow & {
-  students: StudentRow | StudentRow[] | null;
-  courses: CourseRow | CourseRow[] | null;
+type RowFull = Record<string, unknown> & {
+  students: Record<string, unknown> | Record<string, unknown>[] | null;
+  courses: Record<string, unknown> | Record<string, unknown>[] | null;
 };
 
 function one<T>(v: T | T[] | null): T | null {
@@ -17,20 +25,28 @@ function one<T>(v: T | T[] | null): T | null {
 
 export async function GET() {
   const sb = createServerSupabase();
+  const [schemaMode, studentMode, courseMode] = await Promise.all([
+    getEnrollmentSchemaMode(sb),
+    getStudentSchemaMode(sb),
+    getCourseSchemaMode(sb),
+  ]);
   const { data: rows, error } = await sb
     .from("enrollments")
-    .select("*, students!enrollments_student_id_fkey(*), courses!enrollments_course_id_fkey(*)")
-    .order("enrolled_at", { ascending: false });
+    .select("*, students(*), courses(*)")
+    .order(enrollmentOrderColumn(schemaMode), { ascending: false });
 
-  if (error) return jsonError(error.message, 500);
+  if (error) return jsonFromPostgrestError(error);
 
   const list = (rows as RowFull[] | null) ?? [];
   const out: ApiEnrollmentRow[] = [];
 
-  for (const e of list) {
-    const st = one(e.students);
-    const co = one(e.courses);
-    if (!st || !co) return jsonError("Enrollment join incomplete", 500);
+  for (const raw of list) {
+    const e = mapEnrollmentRow(raw as unknown as Record<string, unknown>, schemaMode);
+    const stRaw = one(raw.students);
+    const coRaw = one(raw.courses);
+    if (!stRaw || !coRaw) return jsonError("Enrollment join incomplete", 500);
+    const st = toStudentRow(stRaw, studentMode);
+    const co = toCourseRow(coRaw, courseMode);
     out.push({
       id: e.id,
       studentId: st.id,

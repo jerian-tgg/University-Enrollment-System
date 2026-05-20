@@ -1,8 +1,9 @@
 import { randomUUID } from "crypto";
-import { jsonError, jsonOk } from "@/lib/api/json";
+import { jsonError, jsonFromPostgrestError, jsonOk } from "@/lib/api/json";
 import { assertCanEnroll, ApiHttpError } from "@/lib/enrollment-service";
+import { getEnrollmentSchemaMode, mapEnrollmentRow } from "@/lib/supabase/enrollment-schema";
 import { createServerSupabase } from "@/lib/supabase/server";
-import type { EnrollmentRow } from "@/lib/supabase/rows";
+import { isPostgrestError } from "@/lib/supabase/errors";
 import { z } from "zod";
 
 const bodySchema = z.object({
@@ -31,10 +32,14 @@ export async function POST(req: Request) {
     if (e instanceof ApiHttpError) {
       return jsonError(e.message, e.status);
     }
+    if (isPostgrestError(e)) {
+      return jsonFromPostgrestError(e);
+    }
     throw e;
   }
 
   const sb = createServerSupabase();
+  const schemaMode = await getEnrollmentSchemaMode(sb);
 
   const { data: existing, error: exErr } = await sb
     .from("enrollments")
@@ -43,18 +48,22 @@ export async function POST(req: Request) {
     .eq("course_id", courseId)
     .maybeSingle();
 
-  if (exErr) return jsonError(exErr.message, 500);
+  if (exErr) return jsonFromPostgrestError(exErr);
 
-  if (existing && (existing as EnrollmentRow).status === "dropped") {
+  const existingRow = existing
+    ? mapEnrollmentRow(existing as Record<string, unknown>, schemaMode)
+    : null;
+
+  if (existingRow && schemaMode === "full" && existingRow.status === "dropped") {
     const { data: updated, error: uErr } = await sb
       .from("enrollments")
       .update({ status: "enrolled", grade: null })
-      .eq("id", (existing as EnrollmentRow).id)
+      .eq("id", existingRow.id)
       .select("*")
       .single();
 
-    if (uErr) return jsonError(uErr.message, 500);
-    const u = updated as EnrollmentRow;
+    if (uErr) return jsonFromPostgrestError(uErr);
+    const u = mapEnrollmentRow(updated as Record<string, unknown>, schemaMode);
     return jsonOk({
       id: u.id,
       studentId: u.student_id,
@@ -65,14 +74,18 @@ export async function POST(req: Request) {
     });
   }
 
+  const insertPayload: Record<string, string> = {
+    id: randomUUID(),
+    student_id: studentId,
+    course_id: courseId,
+  };
+  if (schemaMode === "full") {
+    insertPayload.status = "enrolled";
+  }
+
   const { data: created, error: cErr } = await sb
     .from("enrollments")
-    .insert({
-      id: randomUUID(),
-      student_id: studentId,
-      course_id: courseId,
-      status: "enrolled",
-    })
+    .insert(insertPayload)
     .select("*")
     .single();
 
@@ -80,10 +93,10 @@ export async function POST(req: Request) {
     if (cErr.code === "23505") {
       return jsonError("Duplicate enrollment", 409);
     }
-    return jsonError(cErr.message, 500);
+    return jsonFromPostgrestError(cErr);
   }
 
-  const row = created as EnrollmentRow;
+  const row = mapEnrollmentRow(created as Record<string, unknown>, schemaMode);
   return jsonOk({
     id: row.id,
     studentId: row.student_id,
@@ -109,6 +122,7 @@ export async function DELETE(req: Request) {
 
   const { studentId, courseId } = parsed.data;
   const sb = createServerSupabase();
+  const schemaMode = await getEnrollmentSchemaMode(sb);
 
   const { data: row, error: fErr } = await sb
     .from("enrollments")
@@ -117,16 +131,22 @@ export async function DELETE(req: Request) {
     .eq("course_id", courseId)
     .maybeSingle();
 
-  if (fErr) return jsonError(fErr.message, 500);
+  if (fErr) return jsonFromPostgrestError(fErr);
   if (!row) return jsonError("Enrollment not found", 404);
 
-  const e = row as EnrollmentRow;
-  if (e.status !== "enrolled") {
+  const e = mapEnrollmentRow(row as Record<string, unknown>, schemaMode);
+  if (schemaMode === "full" && e.status !== "enrolled") {
     return jsonError("Only active enrollments can be dropped", 409);
   }
 
+  if (schemaMode === "legacy") {
+    const { error: dErr } = await sb.from("enrollments").delete().eq("id", e.id);
+    if (dErr) return jsonFromPostgrestError(dErr);
+    return new Response(null, { status: 204 });
+  }
+
   const { error: uErr } = await sb.from("enrollments").update({ status: "dropped" }).eq("id", e.id);
-  if (uErr) return jsonError(uErr.message, 500);
+  if (uErr) return jsonFromPostgrestError(uErr);
 
   return new Response(null, { status: 204 });
 }

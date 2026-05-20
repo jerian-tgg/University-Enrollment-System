@@ -1,9 +1,9 @@
 import { randomUUID } from "crypto";
-import { jsonError, jsonOk } from "@/lib/api/json";
+import { jsonError, jsonFromPostgrestError, jsonOk } from "@/lib/api/json";
+import { getStudentSchemaMode, toStudentRow } from "@/lib/supabase/enrollment-schema";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { isUniqueViolation } from "@/lib/supabase/errors";
 import { mapStudent } from "@/lib/supabase/mappers";
-import type { StudentRow } from "@/lib/supabase/rows";
 import { z } from "zod";
 
 const createSchema = z.object({
@@ -15,13 +15,18 @@ const createSchema = z.object({
 
 export async function GET() {
   const sb = createServerSupabase();
+  const schemaMode = await getStudentSchemaMode(sb);
   const { data, error } = await sb.from("students").select("*").order("created_at", { ascending: false });
 
   if (error) {
-    return jsonError(error.message, 500);
+    return jsonFromPostgrestError(error);
   }
 
-  return jsonOk((data as StudentRow[]).map(mapStudent));
+  return jsonOk(
+    ((data as Record<string, unknown>[]) ?? []).map((row) =>
+      mapStudent(toStudentRow(row, schemaMode))
+    )
+  );
 }
 
 export async function POST(req: Request) {
@@ -38,26 +43,32 @@ export async function POST(req: Request) {
   }
 
   const sb = createServerSupabase();
+  const schemaMode = await getStudentSchemaMode(sb);
   const id = randomUUID();
 
-  const { data, error } = await sb
-    .from("students")
-    .insert({
-      id,
-      student_id: parsed.data.studentId,
-      first_name: parsed.data.firstName,
-      last_name: parsed.data.lastName,
-      email: parsed.data.email,
-    })
-    .select("*")
-    .single();
+  const insertPayload: Record<string, string> =
+    schemaMode === "full"
+      ? {
+          id,
+          student_id: parsed.data.studentId,
+          first_name: parsed.data.firstName,
+          last_name: parsed.data.lastName,
+          email: parsed.data.email,
+        }
+      : {
+          id,
+          name: `${parsed.data.firstName} ${parsed.data.lastName}`.trim(),
+          email: parsed.data.email,
+        };
+
+  const { data, error } = await sb.from("students").insert(insertPayload).select("*").single();
 
   if (error) {
     if (isUniqueViolation(error)) {
       return jsonError("Student ID must be unique", 409);
     }
-    return jsonError(error.message, 500);
+    return jsonFromPostgrestError(error);
   }
 
-  return jsonOk(mapStudent(data as StudentRow));
+  return jsonOk(mapStudent(toStudentRow(data as Record<string, unknown>, schemaMode)));
 }
