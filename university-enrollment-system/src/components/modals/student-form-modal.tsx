@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import { Spinner } from "@/components/ui/spinner";
+import { useAuth } from "@/contexts/auth-context";
 import { apiCreateStudent, apiGetStudent, apiUpdateStudent } from "@/lib/api/client";
 
 export function StudentFormModal({
@@ -23,6 +24,7 @@ export function StudentFormModal({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { isAdmin } = useAuth();
 
   useEffect(() => {
     if (!open) return;
@@ -67,7 +69,10 @@ export function StudentFormModal({
     setSaving(true);
     try {
       if (editingId) {
-        await apiUpdateStudent(editingId, { studentId, firstName, lastName, email });
+        const body = isAdmin
+          ? { studentId, firstName, lastName, email }
+          : { firstName, lastName, email };
+        await apiUpdateStudent(editingId, body);
       } else {
         await apiCreateStudent({ studentId, firstName, lastName, email });
       }
@@ -116,15 +121,17 @@ export function StudentFormModal({
       ) : (
         <div className="grid gap-3">
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
-          <label className="grid gap-1 text-sm">
-            <span className="font-medium text-[#2d3748]">Student ID</span>
-            <input
-              value={studentId}
-              onChange={(e) => setStudentId(e.target.value)}
-              className="rounded-lg border border-[#cbd5e1] bg-white px-3 py-2 text-[#2d3748] outline-none focus:border-[#1e4d8c]"
-              autoComplete="off"
-            />
-          </label>
+          {isAdmin ? (
+            <label className="grid gap-1 text-sm">
+              <span className="font-medium text-[#2d3748]">Student ID</span>
+              <input
+                value={studentId}
+                onChange={(e) => setStudentId(e.target.value)}
+                className="rounded-lg border border-[#cbd5e1] bg-white px-3 py-2 text-[#2d3748] outline-none focus:border-[#1e4d8c]"
+                autoComplete="off"
+              />
+            </label>
+          ) : null}
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1 text-sm">
               <span className="font-medium text-[#2d3748]">First name</span>

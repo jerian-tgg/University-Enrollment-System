@@ -1,4 +1,5 @@
 import { jsonError, jsonFromPostgrestError, jsonOk } from "@/lib/api/json";
+import { requireAdmin, requireAuth } from "@/lib/auth/guards";
 import {
   countActiveEnrollmentsForCourse,
   courseCodeColumn,
@@ -22,6 +23,9 @@ const updateSchema = z.object({
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_req: Request, { params }: Params) {
+  const auth = await requireAuth();
+  if ("response" in auth) return auth.response;
+
   const { id } = await params;
   const sb = createServerSupabase();
 
@@ -50,6 +54,9 @@ export async function GET(_req: Request, { params }: Params) {
 }
 
 export async function PUT(req: Request, { params }: Params) {
+  const auth = await requireAdmin();
+  if ("response" in auth) return auth.response;
+
   const { id } = await params;
   let body: unknown;
   try {
@@ -126,6 +133,9 @@ export async function PUT(req: Request, { params }: Params) {
 }
 
 export async function DELETE(_req: Request, { params }: Params) {
+  const auth = await requireAdmin();
+  if ("response" in auth) return auth.response;
+
   const { id } = await params;
   const sb = createServerSupabase();
   const { data, error } = await sb.from("courses").delete().eq("id", id).select("id").maybeSingle();

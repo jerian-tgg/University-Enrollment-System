@@ -1,4 +1,5 @@
 import { jsonError, jsonFromPostgrestError, jsonOk } from "@/lib/api/json";
+import { requireAdmin } from "@/lib/auth/guards";
 import { formatGrade } from "@/lib/format";
 import {
   enrollmentOrderColumn,
@@ -22,6 +23,9 @@ function oneStudent(s: StudentRow | StudentRow[] | null): StudentRow | null {
 }
 
 export async function GET(_req: Request, { params }: Params) {
+  const auth = await requireAdmin();
+  if ("response" in auth) return auth.response;
+
   const { id } = await params;
   const sb = createServerSupabase();
 

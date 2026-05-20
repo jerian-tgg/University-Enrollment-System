@@ -1,5 +1,7 @@
 import { randomUUID } from "crypto";
 import { jsonError, jsonFromPostgrestError, jsonOk } from "@/lib/api/json";
+import { requireAdmin, requireAuth } from "@/lib/auth/guards";
+import { isAdmin, studentIdFromSession } from "@/lib/auth/permissions";
 import { getStudentSchemaMode, toStudentRow } from "@/lib/supabase/enrollment-schema";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { isUniqueViolation } from "@/lib/supabase/errors";
@@ -14,9 +16,20 @@ const createSchema = z.object({
 });
 
 export async function GET() {
+  const auth = await requireAuth();
+  if ("response" in auth) return auth.response;
+
   const sb = createServerSupabase();
   const schemaMode = await getStudentSchemaMode(sb);
-  const { data, error } = await sb.from("students").select("*").order("created_at", { ascending: false });
+
+  let query = sb.from("students").select("*").order("created_at", { ascending: false });
+  // Students only see their own record.
+  const scopedStudentId = studentIdFromSession(auth.session);
+  if (scopedStudentId) {
+    query = query.eq("id", scopedStudentId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     return jsonFromPostgrestError(error);
@@ -30,6 +43,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const auth = await requireAdmin();
+  if ("response" in auth) return auth.response;
+
   let body: unknown;
   try {
     body = await req.json();

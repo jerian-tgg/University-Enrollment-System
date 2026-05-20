@@ -1,4 +1,6 @@
 import { jsonError, jsonFromPostgrestError, jsonOk } from "@/lib/api/json";
+import { requireAdmin, requireAuth, requireStudentAccess } from "@/lib/auth/guards";
+import { isAdmin } from "@/lib/auth/permissions";
 import { getStudentSchemaMode, toStudentRow } from "@/lib/supabase/enrollment-schema";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { isUniqueViolation } from "@/lib/supabase/errors";
@@ -15,7 +17,13 @@ const updateSchema = z.object({
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_req: Request, { params }: Params) {
+  const auth = await requireAuth();
+  if ("response" in auth) return auth.response;
+
   const { id } = await params;
+  const denied = requireStudentAccess(auth.session, id);
+  if (denied) return denied.response;
+
   const sb = createServerSupabase();
   const schemaMode = await getStudentSchemaMode(sb);
   const { data, error } = await sb.from("students").select("*").eq("id", id).maybeSingle();
@@ -27,7 +35,13 @@ export async function GET(_req: Request, { params }: Params) {
 }
 
 export async function PUT(req: Request, { params }: Params) {
+  const auth = await requireAuth();
+  if ("response" in auth) return auth.response;
+
   const { id } = await params;
+  const denied = requireStudentAccess(auth.session, id);
+  if (denied) return denied.response;
+
   let body: unknown;
   try {
     body = await req.json();
@@ -48,7 +62,10 @@ export async function PUT(req: Request, { params }: Params) {
 
   const patch: Record<string, unknown> = {};
   if (schemaMode === "full") {
-    if (parsed.data.studentId !== undefined) patch.student_id = parsed.data.studentId;
+    // Only admins may change catalog student id.
+    if (isAdmin(auth.session) && parsed.data.studentId !== undefined) {
+      patch.student_id = parsed.data.studentId;
+    }
     if (parsed.data.firstName !== undefined) patch.first_name = parsed.data.firstName;
     if (parsed.data.lastName !== undefined) patch.last_name = parsed.data.lastName;
   } else {
@@ -72,6 +89,9 @@ export async function PUT(req: Request, { params }: Params) {
 }
 
 export async function DELETE(_req: Request, { params }: Params) {
+  const auth = await requireAdmin();
+  if ("response" in auth) return auth.response;
+
   const { id } = await params;
   const sb = createServerSupabase();
   const { data, error } = await sb.from("students").delete().eq("id", id).select("id").maybeSingle();

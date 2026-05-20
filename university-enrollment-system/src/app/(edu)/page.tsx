@@ -6,15 +6,18 @@ import { BookOpen, Sparkles, Users } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { apiGetStats } from "@/lib/api/client";
 import type { ApiStats } from "@/lib/types/api";
+import { useAuth } from "@/contexts/auth-context";
 import { useDataRefresh } from "@/contexts/data-refresh-context";
 
 export default function DashboardPage() {
   const { version } = useDataRefresh();
+  const { isAdmin } = useAuth();
   const [stats, setStats] = useState<ApiStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!isAdmin) return;
     let cancelled = false;
     (async () => {
       setLoading(true);
@@ -31,7 +34,7 @@ export default function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [version]);
+  }, [version, isAdmin]);
 
   return (
     <div className="space-y-6">

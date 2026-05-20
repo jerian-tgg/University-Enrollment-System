@@ -1,4 +1,5 @@
 import { jsonError, jsonFromPostgrestError, jsonOk } from "@/lib/api/json";
+import { requireAdmin } from "@/lib/auth/guards";
 import { formatGrade } from "@/lib/format";
 import {
   getCourseSchemaMode,
@@ -31,6 +32,9 @@ function one<T>(v: T | T[] | null): T | null {
 }
 
 export async function PUT(req: Request, { params }: Params) {
+  const auth = await requireAdmin();
+  if ("response" in auth) return auth.response;
+
   const { id } = await params;
   let body: unknown;
   try {

@@ -1,4 +1,6 @@
 import { jsonError, jsonFromPostgrestError, jsonOk } from "@/lib/api/json";
+import { requireAuth } from "@/lib/auth/guards";
+import { isAdmin, studentIdFromSession } from "@/lib/auth/permissions";
 import { formatGrade } from "@/lib/format";
 import {
   enrollmentOrderColumn,
@@ -24,16 +26,26 @@ function one<T>(v: T | T[] | null): T | null {
 }
 
 export async function GET() {
+  const auth = await requireAuth();
+  if ("response" in auth) return auth.response;
+
   const sb = createServerSupabase();
   const [schemaMode, studentMode, courseMode] = await Promise.all([
     getEnrollmentSchemaMode(sb),
     getStudentSchemaMode(sb),
     getCourseSchemaMode(sb),
   ]);
-  const { data: rows, error } = await sb
+  let query = sb
     .from("enrollments")
     .select("*, students(*), courses(*)")
     .order(enrollmentOrderColumn(schemaMode), { ascending: false });
+
+  const scopedStudentId = studentIdFromSession(auth.session);
+  if (scopedStudentId) {
+    query = query.eq("student_id", scopedStudentId);
+  }
+
+  const { data: rows, error } = await query;
 
   if (error) return jsonFromPostgrestError(error);
 

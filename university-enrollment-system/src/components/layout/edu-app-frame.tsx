@@ -14,9 +14,13 @@ import {
   BookOpen,
   GraduationCap,
   LayoutDashboard,
+  LogOut,
   Plus,
+  User,
   Users,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/auth-context";
 import { StudentFormModal } from "@/components/modals/student-form-modal";
 import { CourseFormModal } from "@/components/modals/course-form-modal";
 import { ConfirmDeleteModal } from "@/components/modals/confirm-delete-modal";
@@ -50,17 +54,26 @@ export function useEduUi() {
   return ctx;
 }
 
-const nav = [
+const adminNav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/students", label: "Students", icon: Users },
   { href: "/courses", label: "Courses", icon: BookOpen },
   { href: "/enrollments", label: "Enrollments", icon: GraduationCap },
 ];
 
+const studentNav = [
+  { href: "/courses", label: "Courses", icon: BookOpen },
+  { href: "/students", label: "My Profile", icon: User },
+  { href: "/enrollments", label: "My Enrollments", icon: GraduationCap },
+];
+
 export function EduAppFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { bump } = useDataRefresh();
   const toast = useToast();
+  const { isAdmin, isStudent, studentId, session, loading: authLoading } = useAuth();
+  const nav = isAdmin ? adminNav : studentNav;
 
   const [studentFormOpen, setStudentFormOpen] = useState(false);
   const [studentEditingId, setStudentEditingId] = useState<string | null>(null);
@@ -85,11 +98,21 @@ export function EduAppFrame({ children }: { children: ReactNode }) {
 
   const title = useMemo(() => {
     if (pathname === "/" || pathname === "") return "Dashboard";
-    if (pathname.startsWith("/students")) return "Students";
+    if (pathname.startsWith("/students")) return isStudent ? "My Profile" : "Students";
     if (pathname.startsWith("/courses")) return "Courses";
-    if (pathname.startsWith("/enrollments")) return "Enrollments";
+    if (pathname.startsWith("/enrollments")) return isStudent ? "My Enrollments" : "Enrollments";
     return "EduEnroll";
-  }, [pathname]);
+  }, [pathname, isStudent]);
+
+  async function logout() {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      router.replace("/login");
+      router.refresh();
+    } catch {
+      toast.push({ title: "Logout failed", variant: "error" });
+    }
+  }
 
   const ui = useMemo<EduUi>(
     () => ({
@@ -175,7 +198,8 @@ export function EduAppFrame({ children }: { children: ReactNode }) {
           </div>
 
           <nav className="mt-2 flex flex-1 flex-col gap-1 px-2 pb-4">
-            {nav.map((item) => {
+            {!authLoading &&
+              nav.map((item) => {
               const active =
                 item.href === "/"
                   ? pathname === "/" || pathname === ""
@@ -198,6 +222,18 @@ export function EduAppFrame({ children }: { children: ReactNode }) {
               );
             })}
           </nav>
+
+          <div className="border-t border-white/10 px-2 py-3">
+            <button
+              type="button"
+              onClick={() => void logout()}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-blue-100/90 transition hover:bg-white/5 hover:text-white max-[899px]:justify-center max-[899px]:px-2"
+              title="Sign out"
+            >
+              <LogOut className="h-5 w-5 shrink-0" aria-hidden />
+              <span className="max-[899px]:hidden">Sign out</span>
+            </button>
+          </div>
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col pl-[230px] max-[899px]:pl-[60px]">
@@ -205,25 +241,43 @@ export function EduAppFrame({ children }: { children: ReactNode }) {
             <div className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h1 className="text-xl font-semibold text-[#1a3a6b]">{title}</h1>
-                <p className="text-xs text-[#2d3748]/70">Manage students, courses, and enrollments</p>
+                <p className="text-xs text-[#2d3748]/70">
+                  {isStudent
+                    ? "Browse courses and manage your enrollments"
+                    : "Manage students, courses, and enrollments"}
+                </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => ui.openStudentCreate()}
-                  className="inline-flex items-center gap-2 rounded-lg bg-[#1e4d8c] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1a3a6b]"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Student
-                </button>
-                <button
-                  type="button"
-                  onClick={() => ui.openCourseCreate()}
-                  className="inline-flex items-center gap-2 rounded-lg border border-[#c9a227] bg-[#c9a227] px-3 py-2 text-sm font-semibold text-[#1a3a6b] hover:bg-[#b08f1f]"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Course
-                </button>
+                {isAdmin ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => ui.openStudentCreate()}
+                      className="inline-flex items-center gap-2 rounded-lg bg-[#1e4d8c] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1a3a6b]"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Student
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => ui.openCourseCreate()}
+                      className="inline-flex items-center gap-2 rounded-lg border border-[#c9a227] bg-[#c9a227] px-3 py-2 text-sm font-semibold text-[#1a3a6b] hover:bg-[#b08f1f]"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Course
+                    </button>
+                  </>
+                ) : null}
+                {isStudent && studentId ? (
+                  <button
+                    type="button"
+                    onClick={() => ui.openEnrollStudent(studentId, "Me")}
+                    className="inline-flex items-center gap-2 rounded-lg bg-[#1e4d8c] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1a3a6b]"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Enroll in Course
+                  </button>
+                ) : null}
               </div>
             </div>
           </header>
@@ -242,15 +296,17 @@ export function EduAppFrame({ children }: { children: ReactNode }) {
         }}
       />
 
-      <CourseFormModal
-        open={courseFormOpen}
-        onClose={closeCourseForm}
-        editingId={courseEditingId}
-        onSaved={() => {
-          bump();
-          toast.push({ title: courseEditingId ? "Course updated" : "Course created", variant: "success" });
-        }}
-      />
+      {isAdmin ? (
+        <CourseFormModal
+          open={courseFormOpen}
+          onClose={closeCourseForm}
+          editingId={courseEditingId}
+          onSaved={() => {
+            bump();
+            toast.push({ title: courseEditingId ? "Course updated" : "Course created", variant: "success" });
+          }}
+        />
+      ) : null}
 
       <EnrollModal
         open={enrollOpen}
@@ -270,12 +326,14 @@ export function EduAppFrame({ children }: { children: ReactNode }) {
         studentLabel={viewStudentCoursesLabel}
       />
 
-      <ViewCourseStudentsModal
-        open={viewCourseStudentsOpen}
-        onClose={closeViewCourseStudents}
-        courseId={viewCourseStudentsId}
-        courseLabel={viewCourseStudentsLabel}
-      />
+      {isAdmin ? (
+        <ViewCourseStudentsModal
+          open={viewCourseStudentsOpen}
+          onClose={closeViewCourseStudents}
+          courseId={viewCourseStudentsId}
+          courseLabel={viewCourseStudentsLabel}
+        />
+      ) : null}
 
       <ConfirmDeleteModal
         open={Boolean(deleteTarget)}

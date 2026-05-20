@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { jsonError, jsonFromPostgrestError, jsonOk } from "@/lib/api/json";
+import { requireAdmin, requireAuth } from "@/lib/auth/guards";
 import {
   courseOrderColumn,
   getCourseSchemaMode,
@@ -21,6 +22,9 @@ const createSchema = z.object({
 });
 
 export async function GET() {
+  const auth = await requireAuth();
+  if ("response" in auth) return auth.response;
+
   const sb = createServerSupabase();
   const schemaMode = await getCourseSchemaMode(sb);
 
@@ -56,6 +60,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const auth = await requireAdmin();
+  if ("response" in auth) return auth.response;
+
   let body: unknown;
   try {
     body = await req.json();

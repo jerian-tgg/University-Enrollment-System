@@ -1,8 +1,12 @@
 import { jsonFromPostgrestError, jsonOk } from "@/lib/api/json";
+import { requireAdmin } from "@/lib/auth/guards";
 import { countEnrollmentsByStatus } from "@/lib/supabase/enrollment-schema";
 import { createServerSupabase } from "@/lib/supabase/server";
 
 export async function GET() {
+  const auth = await requireAdmin();
+  if ("response" in auth) return auth.response;
+
   const sb = createServerSupabase();
 
   const [students, courses, active, completed] = await Promise.all([

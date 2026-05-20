@@ -1,4 +1,5 @@
 import { jsonError, jsonFromPostgrestError, jsonOk } from "@/lib/api/json";
+import { requireAuth, requireStudentAccess } from "@/lib/auth/guards";
 import { formatGrade } from "@/lib/format";
 import {
   enrollmentOrderColumn,
@@ -22,7 +23,13 @@ function oneCourse(c: CourseRow | CourseRow[] | null): CourseRow | null {
 }
 
 export async function GET(_req: Request, { params }: Params) {
+  const auth = await requireAuth();
+  if ("response" in auth) return auth.response;
+
   const { id } = await params;
+  const denied = requireStudentAccess(auth.session, id);
+  if (denied) return denied.response;
+
   const sb = createServerSupabase();
 
   const { data: student, error: sErr } = await sb.from("students").select("id").eq("id", id).maybeSingle();

@@ -6,12 +6,14 @@ import { Spinner } from "@/components/ui/spinner";
 import { formatDate } from "@/lib/format";
 import { apiGetStudents } from "@/lib/api/client";
 import type { ApiStudent } from "@/lib/types/api";
+import { useAuth } from "@/contexts/auth-context";
 import { useDataRefresh } from "@/contexts/data-refresh-context";
 import { useEduUi } from "@/components/layout/edu-app-frame";
 
 export default function StudentsPage() {
   const { version } = useDataRefresh();
   const ui = useEduUi();
+  const { isAdmin, isStudent } = useAuth();
   const [rows, setRows] = useState<ApiStudent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -47,17 +49,19 @@ export default function StudentsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <label className="relative w-full sm:max-w-md">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#2d3748]/50" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search students…"
-            className="w-full rounded-xl border border-[#e2e8f0] bg-white py-2 pl-10 pr-3 text-sm outline-none ring-1 ring-black/5 focus:border-[#1e4d8c]"
-          />
-        </label>
-      </div>
+      {isAdmin ? (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <label className="relative w-full sm:max-w-md">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#2d3748]/50" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search students…"
+              className="w-full rounded-xl border border-[#e2e8f0] bg-white py-2 pl-10 pr-3 text-sm outline-none ring-1 ring-black/5 focus:border-[#1e4d8c]"
+            />
+          </label>
+        </div>
+      ) : null}
 
       {loading ? (
         <div className="flex items-center gap-2 rounded-xl border border-[#e2e8f0] bg-white p-6 text-sm text-[#2d3748] shadow-sm">
@@ -114,24 +118,28 @@ export default function StudentsPage() {
                         >
                           <BookOpen className="h-4 w-4" />
                         </IconButton>
-                        <IconButton
-                          label="Enroll"
-                          onClick={() => ui.openEnrollStudent(s.id, label)}
-                        >
-                          <UserPlus className="h-4 w-4" />
-                        </IconButton>
+                        {isAdmin || isStudent ? (
+                          <IconButton
+                            label="Enroll"
+                            onClick={() => ui.openEnrollStudent(s.id, label)}
+                          >
+                            <UserPlus className="h-4 w-4" />
+                          </IconButton>
+                        ) : null}
                         <IconButton label="Edit" onClick={() => ui.openStudentEdit(s.id)}>
                           <Pencil className="h-4 w-4" />
                         </IconButton>
-                        <IconButton
-                          label="Delete"
-                          onClick={() =>
-                            ui.openDelete({ kind: "student", id: s.id, label: `${label} (${s.studentId})` })
-                          }
-                          danger
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </IconButton>
+                        {isAdmin ? (
+                          <IconButton
+                            label="Delete"
+                            onClick={() =>
+                              ui.openDelete({ kind: "student", id: s.id, label: `${label} (${s.studentId})` })
+                            }
+                            danger
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </IconButton>
+                        ) : null}
                       </div>
                     </td>
                   </tr>

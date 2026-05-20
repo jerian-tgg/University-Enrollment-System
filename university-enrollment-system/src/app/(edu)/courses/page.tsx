@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, Pencil, Search, Trash2, Users } from "lucide-react";
+import { BookOpen, Pencil, Search, Trash2, UserPlus, Users } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { CapacityBar } from "@/components/ui/capacity-bar";
 import { apiGetCourses } from "@/lib/api/client";
 import type { ApiCourseListItem } from "@/lib/types/api";
 import { capacityPercent } from "@/lib/format";
+import { useAuth } from "@/contexts/auth-context";
 import { useDataRefresh } from "@/contexts/data-refresh-context";
 import { useEduUi } from "@/components/layout/edu-app-frame";
 
@@ -21,6 +22,7 @@ function availability(course: ApiCourseListItem) {
 export default function CoursesPage() {
   const { version } = useDataRefresh();
   const ui = useEduUi();
+  const { isAdmin, isStudent, studentId } = useAuth();
   const [rows, setRows] = useState<ApiCourseListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -120,35 +122,50 @@ export default function CoursesPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
-                        <button
-                          type="button"
-                          title="View students"
-                          aria-label="View students"
-                          onClick={() => ui.openViewCourseStudents(c.id, label)}
-                          className="rounded-lg p-2 text-[#1e4d8c] ring-1 ring-black/5 hover:bg-[#f8f9fc]"
-                        >
-                          <Users className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          title="Edit"
-                          aria-label="Edit"
-                          onClick={() => ui.openCourseEdit(c.id)}
-                          className="rounded-lg p-2 text-[#1e4d8c] ring-1 ring-black/5 hover:bg-[#f8f9fc]"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          title="Delete"
-                          aria-label="Delete"
-                          onClick={() =>
-                            ui.openDelete({ kind: "course", id: c.id, label: `${c.courseCode}` })
-                          }
-                          className="rounded-lg p-2 text-red-700 ring-1 ring-black/5 hover:bg-red-50"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        {isAdmin ? (
+                          <>
+                            <button
+                              type="button"
+                              title="View students"
+                              aria-label="View students"
+                              onClick={() => ui.openViewCourseStudents(c.id, label)}
+                              className="rounded-lg p-2 text-[#1e4d8c] ring-1 ring-black/5 hover:bg-[#f8f9fc]"
+                            >
+                              <Users className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              title="Edit"
+                              aria-label="Edit"
+                              onClick={() => ui.openCourseEdit(c.id)}
+                              className="rounded-lg p-2 text-[#1e4d8c] ring-1 ring-black/5 hover:bg-[#f8f9fc]"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              title="Delete"
+                              aria-label="Delete"
+                              onClick={() =>
+                                ui.openDelete({ kind: "course", id: c.id, label: `${c.courseCode}` })
+                              }
+                              className="rounded-lg p-2 text-red-700 ring-1 ring-black/5 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </>
+                        ) : null}
+                        {isStudent && studentId ? (
+                          <button
+                            type="button"
+                            title="Enroll in this course"
+                            aria-label="Enroll in this course"
+                            onClick={() => ui.openEnrollStudent(studentId, "Me")}
+                            className="rounded-lg p-2 text-[#1e4d8c] ring-1 ring-black/5 hover:bg-[#f8f9fc]"
+                          >
+                            <UserPlus className="h-4 w-4" />
+                          </button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>

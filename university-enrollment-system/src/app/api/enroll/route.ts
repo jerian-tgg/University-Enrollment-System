@@ -1,5 +1,7 @@
 import { randomUUID } from "crypto";
 import { jsonError, jsonFromPostgrestError, jsonOk } from "@/lib/api/json";
+import { requireAuth } from "@/lib/auth/guards";
+import { resolveStudentIdForMutation } from "@/lib/auth/permissions";
 import { assertCanEnroll, ApiHttpError } from "@/lib/enrollment-service";
 import { getEnrollmentSchemaMode, mapEnrollmentRow } from "@/lib/supabase/enrollment-schema";
 import { createServerSupabase } from "@/lib/supabase/server";
@@ -12,6 +14,9 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: Request) {
+  const auth = await requireAuth();
+  if ("response" in auth) return auth.response;
+
   let body: unknown;
   try {
     body = await req.json();
@@ -24,7 +29,11 @@ export async function POST(req: Request) {
     return jsonError(parsed.error.issues.map((i) => i.message).join(", "), 400);
   }
 
-  const { studentId, courseId } = parsed.data;
+  const studentId = resolveStudentIdForMutation(auth.session, parsed.data.studentId);
+  if (!studentId) {
+    return jsonError("Forbidden", 403);
+  }
+  const { courseId } = parsed.data;
 
   try {
     await assertCanEnroll(studentId, courseId);
@@ -108,6 +117,9 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const auth = await requireAuth();
+  if ("response" in auth) return auth.response;
+
   let body: unknown;
   try {
     body = await req.json();
@@ -120,7 +132,11 @@ export async function DELETE(req: Request) {
     return jsonError(parsed.error.issues.map((i) => i.message).join(", "), 400);
   }
 
-  const { studentId, courseId } = parsed.data;
+  const studentId = resolveStudentIdForMutation(auth.session, parsed.data.studentId);
+  if (!studentId) {
+    return jsonError("Forbidden", 403);
+  }
+  const { courseId } = parsed.data;
   const sb = createServerSupabase();
   const schemaMode = await getEnrollmentSchemaMode(sb);
 
