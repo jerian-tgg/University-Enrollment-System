@@ -13,9 +13,13 @@ SET
     NULLIF("last_name", ''),
     NULLIF(trim(substring("name" from length(split_part("name", ' ', 1)) + 1)), ''),
     '—'
-  ),
-  "student_id" = COALESCE("student_id", "id")
+  )
 WHERE "name" IS NOT NULL;
+
+-- student_id is TEXT; id is UUID — cast so COALESCE types match
+UPDATE "students"
+SET "student_id" = COALESCE("student_id", "id"::text)
+WHERE "student_id" IS NULL;
 
 -- Courses: code → course_code, defaults for optional fields
 ALTER TABLE "courses" ADD COLUMN IF NOT EXISTS "course_code" TEXT;
@@ -94,3 +98,7 @@ DO $$ BEGIN
 EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;
+
+-- Legacy duplicate FKs (e.g. fk_course) confuse PostgREST embeds: courses(*) is ambiguous.
+ALTER TABLE "enrollments" DROP CONSTRAINT IF EXISTS "fk_course";
+ALTER TABLE "enrollments" DROP CONSTRAINT IF EXISTS "fk_student";

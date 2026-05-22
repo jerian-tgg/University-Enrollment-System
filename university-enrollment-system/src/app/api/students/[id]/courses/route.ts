@@ -3,6 +3,7 @@ import { requireAuth, requireStudentAccess } from "@/lib/auth/guards";
 import { formatGrade } from "@/lib/format";
 import {
   enrollmentOrderColumn,
+  enrollmentSelectWithCourse,
   getCourseSchemaMode,
   getEnrollmentSchemaMode,
   mapEnrollmentRow,
@@ -42,7 +43,7 @@ export async function GET(_req: Request, { params }: Params) {
   ]);
   const { data: rows, error } = await sb
     .from("enrollments")
-    .select("*, courses(*)")
+    .select(enrollmentSelectWithCourse)
     .eq("student_id", id)
     .order(enrollmentOrderColumn(schemaMode), { ascending: false });
 
@@ -57,6 +58,7 @@ export async function GET(_req: Request, { params }: Params) {
     if (!courseRaw) return jsonError("Enrollment missing course join", 500);
     const course = toCourseRow(courseRaw as unknown as Record<string, unknown>, courseMode);
     out.push({
+      enrollmentId: e.id,
       courseId: e.course_id,
       courseCode: course.course_code,
       title: course.title,

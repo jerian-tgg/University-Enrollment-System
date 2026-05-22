@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth/guards";
 import { formatGrade } from "@/lib/format";
 import {
   enrollmentOrderColumn,
+  enrollmentSelectWithStudent,
   getEnrollmentSchemaMode,
   getStudentSchemaMode,
   mapEnrollmentRow,
@@ -39,7 +40,7 @@ export async function GET(_req: Request, { params }: Params) {
   ]);
   const { data: rows, error } = await sb
     .from("enrollments")
-    .select("*, students(*)")
+    .select(enrollmentSelectWithStudent)
     .eq("course_id", id)
     .order(enrollmentOrderColumn(schemaMode), { ascending: false });
 

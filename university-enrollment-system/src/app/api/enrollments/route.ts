@@ -4,6 +4,7 @@ import { isAdmin, studentIdFromSession } from "@/lib/auth/permissions";
 import { formatGrade } from "@/lib/format";
 import {
   enrollmentOrderColumn,
+  enrollmentSelectWithJoins,
   getCourseSchemaMode,
   getEnrollmentSchemaMode,
   getStudentSchemaMode,
@@ -37,7 +38,7 @@ export async function GET() {
   ]);
   let query = sb
     .from("enrollments")
-    .select("*, students(*), courses(*)")
+    .select(enrollmentSelectWithJoins)
     .order(enrollmentOrderColumn(schemaMode), { ascending: false });
 
   const scopedStudentId = studentIdFromSession(auth.session);

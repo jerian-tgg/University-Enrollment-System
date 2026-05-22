@@ -6,12 +6,6 @@ import { isPostgrestError } from "@/lib/supabase/errors";
 export type SchemaMode = "full" | "legacy";
 export type EnrollmentSchemaMode = SchemaMode;
 
-const globalForSchema = globalThis as unknown as {
-  __enrollmentSchemaMode?: SchemaMode;
-  __studentSchemaMode?: SchemaMode;
-  __courseSchemaMode?: SchemaMode;
-};
-
 async function probeColumn(
   sb: SupabaseClient,
   table: "students" | "courses" | "enrollments",
@@ -22,27 +16,15 @@ async function probeColumn(
 }
 
 export async function getEnrollmentSchemaMode(sb: SupabaseClient): Promise<SchemaMode> {
-  if (globalForSchema.__enrollmentSchemaMode) {
-    return globalForSchema.__enrollmentSchemaMode;
-  }
-  globalForSchema.__enrollmentSchemaMode = await probeColumn(sb, "enrollments", "status");
-  return globalForSchema.__enrollmentSchemaMode;
+  return probeColumn(sb, "enrollments", "status");
 }
 
 export async function getStudentSchemaMode(sb: SupabaseClient): Promise<SchemaMode> {
-  if (globalForSchema.__studentSchemaMode) {
-    return globalForSchema.__studentSchemaMode;
-  }
-  globalForSchema.__studentSchemaMode = await probeColumn(sb, "students", "first_name");
-  return globalForSchema.__studentSchemaMode;
+  return probeColumn(sb, "students", "first_name");
 }
 
 export async function getCourseSchemaMode(sb: SupabaseClient): Promise<SchemaMode> {
-  if (globalForSchema.__courseSchemaMode) {
-    return globalForSchema.__courseSchemaMode;
-  }
-  globalForSchema.__courseSchemaMode = await probeColumn(sb, "courses", "course_code");
-  return globalForSchema.__courseSchemaMode;
+  return probeColumn(sb, "courses", "course_code");
 }
 
 export function toStudentRow(raw: Record<string, unknown>, mode: SchemaMode): StudentRow {
@@ -161,6 +143,12 @@ export async function listEnrolledCourseIds(
   const { data, error } = await query;
   return { data: data as { course_id: string }[] | null, error };
 }
+
+/** PostgREST embed hints when legacy + migration FKs both exist on enrollments. */
+export const enrollmentSelectWithJoins =
+  "*, students!enrollments_student_id_fkey(*), courses!enrollments_course_id_fkey(*)";
+export const enrollmentSelectWithCourse = "*, courses!enrollments_course_id_fkey(*)";
+export const enrollmentSelectWithStudent = "*, students!enrollments_student_id_fkey(*)";
 
 export const MIGRATION_HINT =
   "Database schema is out of date. Run supabase/migrations/20260520140000_align_enrollments_schema.sql in the Supabase SQL editor (or npm run db:migrate with SUPABASE_DB_PASSWORD set).";

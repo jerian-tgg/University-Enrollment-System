@@ -44,6 +44,7 @@ export type ApiStats = {
 };
 
 export type ApiStudentCourse = {
+  enrollmentId: string;
   courseId: string;
   courseCode: string;
   title: string;

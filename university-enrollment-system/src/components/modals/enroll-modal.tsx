@@ -5,7 +5,7 @@ import { Modal } from "@/components/ui/modal";
 import { Spinner } from "@/components/ui/spinner";
 import { apiEnroll, apiGetCourses, apiGetStudentCourses } from "@/lib/api/client";
 import { isCourseAvailableForStudent } from "@/lib/eligibility";
-import type { ApiCourseListItem } from "@/lib/types/api";
+import type { ApiCourseListItem, ApiStudentCourse } from "@/lib/types/api";
 
 export function EnrollModal({
   open,
@@ -21,8 +21,8 @@ export function EnrollModal({
   onEnrolled: () => void;
 }) {
   const [courses, setCourses] = useState<ApiCourseListItem[]>([]);
-  const [studentCourses, setStudentCourses] = useState<Awaited<ReturnType<typeof apiGetStudentCourses>>>([]);
-  const [selectedCourseId, setSelectedCourseId] = useState("");
+  const [studentCourses, setStudentCourses] = useState<ApiStudentCourse[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +33,7 @@ export function EnrollModal({
     (async () => {
       setLoading(true);
       setError(null);
-      setSelectedCourseId("");
+      setSelectedIds(new Set());
       try {
         const [allCourses, mine] = await Promise.all([
           apiGetCourses(),
@@ -57,30 +57,78 @@ export function EnrollModal({
     return courses.filter((c) => isCourseAvailableForStudent(c, studentCourses));
   }, [courses, studentCourses]);
 
+  const allSelected = eligible.length > 0 && eligible.every((c) => selectedIds.has(c.id));
+
+  function toggleCourse(courseId: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(courseId)) next.delete(courseId);
+      else next.add(courseId);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(eligible.map((c) => c.id)));
+    }
+  }
+
   async function submit() {
     if (!studentId) return;
-    if (!selectedCourseId) {
-      setError("Select a course.");
+    const ids = [...selectedIds];
+    if (ids.length === 0) {
+      setError("Select at least one course.");
       return;
     }
     setSaving(true);
     setError(null);
+    const failures: string[] = [];
+    let successCount = 0;
+
     try {
-      await apiEnroll({ studentId, courseId: selectedCourseId });
-      onEnrolled();
-      onClose();
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Enrollment failed");
+      for (const courseId of ids) {
+        try {
+          await apiEnroll({ studentId, courseId });
+          successCount += 1;
+        } catch (e: unknown) {
+          const course = courses.find((c) => c.id === courseId);
+          const label = course ? `${course.courseCode}` : courseId;
+          failures.push(`${label}: ${e instanceof Error ? e.message : "Enrollment failed"}`);
+        }
+      }
+
+      if (successCount > 0) {
+        onEnrolled();
+        const mine = await apiGetStudentCourses(studentId);
+        setStudentCourses(mine);
+        setSelectedIds(new Set());
+      }
+
+      if (failures.length === 0) {
+        onClose();
+      } else if (successCount > 0) {
+        setError(
+          `Enrolled in ${successCount} course${successCount === 1 ? "" : "s"}. Failed: ${failures.join("; ")}`
+        );
+      } else {
+        setError(failures.join("; "));
+      }
     } finally {
       setSaving(false);
     }
   }
+
+  const selectedCount = selectedIds.size;
 
   return (
     <Modal
       open={open}
       title={`Enroll — ${studentLabel}`}
       onClose={onClose}
+      wide
       footer={
         <>
           <button
@@ -93,11 +141,11 @@ export function EnrollModal({
           <button
             type="button"
             onClick={() => void submit()}
-            disabled={saving || loading || eligible.length === 0}
+            disabled={saving || loading || eligible.length === 0 || selectedCount === 0}
             className="inline-flex items-center gap-2 rounded-lg bg-[#1e4d8c] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1a3a6b] disabled:opacity-50"
           >
             {saving ? <Spinner className="h-4 w-4 border-white border-t-transparent" /> : null}
-            Enroll
+            {selectedCount > 0 ? `Enroll (${selectedCount})` : "Enroll"}
           </button>
         </>
       }
@@ -115,22 +163,48 @@ export function EnrollModal({
               No available courses right now (capacity full, prerequisites missing, or already enrolled).
             </div>
           ) : (
-            <label className="grid gap-1 text-sm">
-              <span className="font-medium text-[#2d3748]">Available course</span>
-              <select
-                value={selectedCourseId}
-                onChange={(e) => setSelectedCourseId(e.target.value)}
-                className="rounded-lg border border-[#cbd5e1] bg-white px-3 py-2 text-[#2d3748] outline-none focus:border-[#1e4d8c]"
-              >
-                <option value="">Select a course…</option>
-                {eligible.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.courseCode} — {c.title} ({c.enrolledCount}/{c.capacity})
-                    {c.prerequisiteCode ? ` • Prereq: ${c.prerequisiteCode}` : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-medium text-[#2d3748]">Select one or more courses</p>
+                <button
+                  type="button"
+                  onClick={toggleAll}
+                  className="text-sm font-semibold text-[#1e4d8c] hover:underline"
+                >
+                  {allSelected ? "Clear all" : "Select all"}
+                </button>
+              </div>
+              <ul className="max-h-80 space-y-2 overflow-y-auto rounded-lg border border-[#e2e8f0] bg-[#f8f9fc] p-2">
+                {eligible.map((c) => {
+                  const checked = selectedIds.has(c.id);
+                  return (
+                    <li key={c.id}>
+                      <label
+                        className={`flex cursor-pointer items-start gap-3 rounded-lg border bg-white px-3 py-2.5 shadow-sm ring-1 ring-black/5 transition hover:border-[#1e4d8c]/30 ${
+                          checked ? "border-[#1e4d8c]/40 ring-[#1e4d8c]/20" : "border-transparent"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleCourse(c.id)}
+                          className="mt-1 h-4 w-4 rounded border-[#cbd5e1] text-[#1e4d8c] focus:ring-[#1e4d8c]"
+                        />
+                        <span className="min-w-0 flex-1 text-sm text-[#2d3748]">
+                          <span className="font-semibold text-[#1a3a6b]">
+                            {c.courseCode} — {c.title}
+                          </span>
+                          <span className="mt-0.5 block text-xs text-[#2d3748]/70">
+                            {c.enrolledCount}/{c.capacity} enrolled
+                            {c.prerequisiteCode ? ` · Prereq: ${c.prerequisiteCode}` : ""}
+                          </span>
+                        </span>
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
           )}
         </div>
       )}

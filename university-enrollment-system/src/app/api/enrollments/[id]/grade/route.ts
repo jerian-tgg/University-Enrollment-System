@@ -2,11 +2,11 @@ import { jsonError, jsonFromPostgrestError, jsonOk } from "@/lib/api/json";
 import { requireAdmin } from "@/lib/auth/guards";
 import { formatGrade } from "@/lib/format";
 import {
+  enrollmentSelectWithJoins,
   getCourseSchemaMode,
   getEnrollmentSchemaMode,
   getStudentSchemaMode,
   mapEnrollmentRow,
-  MIGRATION_HINT,
   toCourseRow,
   toStudentRow,
 } from "@/lib/supabase/enrollment-schema";
@@ -49,33 +49,39 @@ export async function PUT(req: Request, { params }: Params) {
   }
 
   const sb = createServerSupabase();
-  const schemaMode = await getEnrollmentSchemaMode(sb);
-  if (schemaMode === "legacy") {
-    return jsonError(MIGRATION_HINT, 503);
-  }
+  const [schemaMode, studentMode, courseMode] = await Promise.all([
+    getEnrollmentSchemaMode(sb),
+    getStudentSchemaMode(sb),
+    getCourseSchemaMode(sb),
+  ]);
 
   const { data: enrollment, error: fErr } = await sb.from("enrollments").select("*").eq("id", id).maybeSingle();
   if (fErr) return jsonFromPostgrestError(fErr);
   if (!enrollment) return jsonError("Enrollment not found", 404);
 
-  const e = enrollment as EnrollmentRow;
-  if (e.status === "dropped") {
+  const e = mapEnrollmentRow(enrollment as Record<string, unknown>, schemaMode);
+  if (schemaMode === "full" && e.status === "dropped") {
     return jsonError("Cannot set grade for a dropped enrollment", 409);
   }
 
   const g = parsed.data.grade;
-  let nextStatus = e.status;
-  if (g >= 75) {
-    nextStatus = "completed";
-  } else if (e.status === "completed") {
-    nextStatus = "enrolled";
+  const patch: Record<string, unknown> = { grade: g.toFixed(2) };
+
+  if (schemaMode === "full") {
+    let nextStatus = e.status;
+    if (g >= 75) {
+      nextStatus = "completed";
+    } else if (e.status === "completed") {
+      nextStatus = "enrolled";
+    }
+    patch.status = nextStatus;
   }
 
   const { data: updated, error: uErr } = await sb
     .from("enrollments")
-    .update({ grade: g.toFixed(2), status: nextStatus })
+    .update(patch)
     .eq("id", id)
-    .select("*, students(*), courses(*)")
+    .select(enrollmentSelectWithJoins)
     .single();
 
   if (uErr) return jsonFromPostgrestError(uErr);
@@ -85,13 +91,9 @@ export async function PUT(req: Request, { params }: Params) {
   const coRaw = one(row.courses);
   if (!stRaw || !coRaw) return jsonError("Enrollment join incomplete", 500);
 
-  const [studentMode, courseMode] = await Promise.all([
-    getStudentSchemaMode(sb),
-    getCourseSchemaMode(sb),
-  ]);
   const st = toStudentRow(stRaw as Record<string, unknown>, studentMode);
   const co = toCourseRow(coRaw as Record<string, unknown>, courseMode);
-  const mapped = mapEnrollmentRow(row as unknown as Record<string, unknown>, "full");
+  const mapped = mapEnrollmentRow(row as unknown as Record<string, unknown>, schemaMode);
 
   return jsonOk({
     id: mapped.id,
