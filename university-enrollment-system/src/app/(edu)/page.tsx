@@ -2,31 +2,45 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { BookOpen, Sparkles, Users } from "lucide-react";
+import { BookOpen, ClipboardList, Sparkles, User, Users } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
-import { apiGetStats } from "@/lib/api/client";
+import { apiGetEnrollments, apiGetStats } from "@/lib/api/client";
 import type { ApiStats } from "@/lib/types/api";
 import { useAuth } from "@/contexts/auth-context";
 import { useDataRefresh } from "@/contexts/data-refresh-context";
 
 export default function DashboardPage() {
   const { version } = useDataRefresh();
-  const { isAdmin } = useAuth();
+  const { isAdmin, isStudent } = useAuth();
   const [stats, setStats] = useState<ApiStats | null>(null);
+  const [activeEnrollments, setActiveEnrollments] = useState<number | null>(null);
+  const [completedEnrollments, setCompletedEnrollments] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isAdmin) return;
     let cancelled = false;
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        const s = await apiGetStats();
-        if (!cancelled) setStats(s);
+        if (isAdmin) {
+          const s = await apiGetStats();
+          if (!cancelled) {
+            setStats(s);
+            setActiveEnrollments(null);
+            setCompletedEnrollments(null);
+          }
+        } else if (isStudent) {
+          const rows = await apiGetEnrollments();
+          if (!cancelled) {
+            setStats(null);
+            setActiveEnrollments(rows.filter((r) => r.status === "enrolled").length);
+            setCompletedEnrollments(rows.filter((r) => r.status === "completed").length);
+          }
+        }
       } catch (e: unknown) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load stats");
+        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load dashboard");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -34,7 +48,7 @@ export default function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [version, isAdmin]);
+  }, [version, isAdmin, isStudent]);
 
   return (
     <div className="space-y-6">
@@ -47,7 +61,9 @@ export default function DashboardPage() {
             <div>
               <h2 className="text-lg font-semibold">Welcome back</h2>
               <p className="mt-1 max-w-2xl text-sm text-blue-100/90">
-                Track enrollment health, capacity, and student progress from a single operations desk.
+                {isAdmin
+                  ? "Track enrollment health, capacity, and student progress from a single operations desk."
+                  : "Browse courses, view your student record, and manage your enrollments."}
               </p>
             </div>
           </div>
@@ -61,28 +77,58 @@ export default function DashboardPage() {
         </div>
       ) : error ? (
         <p className="text-sm text-red-600">{error}</p>
-      ) : stats ? (
+      ) : isAdmin && stats ? (
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard label="Total students" value={stats.totalStudents} accent="border-[#1e4d8c]" />
           <StatCard label="Total courses" value={stats.totalCourses} accent="border-[#c9a227]" />
           <StatCard label="Active enrollments" value={stats.activeEnrollments} accent="border-emerald-500" />
           <StatCard label="Completed" value={stats.completed} accent="border-blue-300" />
         </section>
+      ) : isStudent && activeEnrollments !== null && completedEnrollments !== null ? (
+        <section className="grid gap-4 sm:grid-cols-2">
+          <StatCard label="Active enrollments" value={activeEnrollments} accent="border-emerald-500" />
+          <StatCard label="Completed" value={completedEnrollments} accent="border-blue-300" />
+        </section>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-2">
-        <QuickCard
-          href="/students"
-          title="Students"
-          description="Search, enroll, and maintain student records."
-          icon={Users}
-        />
-        <QuickCard
-          href="/courses"
-          title="Courses"
-          description="Manage catalog, prerequisites, and capacity."
-          icon={BookOpen}
-        />
+      <section className={`grid gap-4 ${isAdmin ? "md:grid-cols-2" : "md:grid-cols-3"}`}>
+        {isAdmin ? (
+          <>
+            <QuickCard
+              href="/students"
+              title="Students"
+              description="Search, enroll, and maintain student records."
+              icon={Users}
+            />
+            <QuickCard
+              href="/courses"
+              title="Courses"
+              description="Manage catalog, prerequisites, and capacity."
+              icon={BookOpen}
+            />
+          </>
+        ) : (
+          <>
+            <QuickCard
+              href="/courses"
+              title="Courses"
+              description="Browse the catalog and enroll in available courses."
+              icon={BookOpen}
+            />
+            <QuickCard
+              href="/students"
+              title="Student"
+              description="View and update your student profile."
+              icon={User}
+            />
+            <QuickCard
+              href="/enrollments"
+              title="Enrollments"
+              description="See your active and completed course enrollments."
+              icon={ClipboardList}
+            />
+          </>
+        )}
       </section>
     </div>
   );

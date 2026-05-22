@@ -31,7 +31,7 @@ export async function middleware(request: NextRequest) {
 
   if (isPublicPage(pathname)) {
     if (session) {
-      const dest = session.role === "student" ? "/courses" : "/";
+      const dest = "/";
       return NextResponse.redirect(new URL(dest, request.url));
     }
     return NextResponse.next();
@@ -41,10 +41,6 @@ export async function middleware(request: NextRequest) {
     const login = new URL("/login", request.url);
     login.searchParams.set("from", pathname);
     return NextResponse.redirect(login);
-  }
-
-  if (session.role === "student" && (pathname === "/" || pathname === "")) {
-    return NextResponse.redirect(new URL("/courses", request.url));
   }
 
   return NextResponse.next();

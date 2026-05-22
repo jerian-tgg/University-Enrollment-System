@@ -62,9 +62,10 @@ const adminNav = [
 ];
 
 const studentNav = [
+  { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/courses", label: "Courses", icon: BookOpen },
-  { href: "/students", label: "My Profile", icon: User },
-  { href: "/enrollments", label: "My Enrollments", icon: GraduationCap },
+  { href: "/students", label: "Student", icon: User },
+  { href: "/enrollments", label: "Enrollments", icon: GraduationCap },
 ];
 
 export function EduAppFrame({ children }: { children: ReactNode }) {
@@ -98,9 +99,9 @@ export function EduAppFrame({ children }: { children: ReactNode }) {
 
   const title = useMemo(() => {
     if (pathname === "/" || pathname === "") return "Dashboard";
-    if (pathname.startsWith("/students")) return isStudent ? "My Profile" : "Students";
+    if (pathname.startsWith("/students")) return isStudent ? "Student" : "Students";
     if (pathname.startsWith("/courses")) return "Courses";
-    if (pathname.startsWith("/enrollments")) return isStudent ? "My Enrollments" : "Enrollments";
+    if (pathname.startsWith("/enrollments")) return "Enrollments";
     return "EduEnroll";
   }, [pathname, isStudent]);
 

@@ -30,7 +30,7 @@ function LoginForm() {
       }
       const from = searchParams.get("from");
       if (data.role === "student") {
-        router.replace(from && from !== "/" ? from : "/courses");
+        router.replace(from && from !== "/" && from !== "/login" ? from : "/");
       } else {
         router.replace(from && from !== "/login" ? from : "/");
       }
