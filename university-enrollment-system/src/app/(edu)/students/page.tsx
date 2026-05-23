@@ -13,7 +13,7 @@ import { useEduUi } from "@/components/layout/edu-app-frame";
 export default function StudentsPage() {
   const { version } = useDataRefresh();
   const ui = useEduUi();
-  const { isAdmin, isStudent } = useAuth();
+  const { isAdmin, isStudent, studentId } = useAuth();
   const [rows, setRows] = useState<ApiStudent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +46,67 @@ export default function StudentsPage() {
       return hay.includes(needle);
     });
   }, [rows, q]);
+
+  const profile = isStudent && rows.length > 0 ? rows[0] : null;
+
+  if (isStudent) {
+    const label = profile ? `${profile.firstName} ${profile.lastName}` : "Student";
+    return (
+      <div className="space-y-4">
+        {loading ? (
+          <div className="flex items-center gap-2 rounded-xl border border-[#e2e8f0] bg-white p-6 text-sm text-[#2d3748] shadow-sm">
+            <Spinner />
+            Loading profile…
+          </div>
+        ) : error ? (
+          <p className="text-sm text-red-600">{error}</p>
+        ) : !profile ? (
+          <p className="text-sm text-[#2d3748]/80">No student profile found for your account.</p>
+        ) : (
+          <div className="rounded-2xl border border-[#e2e8f0] bg-white p-6 shadow-sm ring-1 ring-black/5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex items-start gap-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#1e4d8c]/10 text-lg font-semibold text-[#1e4d8c]">
+                  {`${profile.firstName[0] ?? ""}${profile.lastName[0] ?? ""}`.toUpperCase()}
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-[#1a3a6b]">{label}</h2>
+                  <p className="mt-1 text-sm text-[#2d3748]/80">{profile.email}</p>
+                  <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-[#2d3748]/60">
+                        Student ID
+                      </dt>
+                      <dd className="font-medium tabular-nums text-[#1a3a6b]">{profile.studentId}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-[#2d3748]/60">
+                        Registered
+                      </dt>
+                      <dd>{formatDate(profile.createdAt)}</dd>
+                    </div>
+                  </dl>
+                </div>
+              </div>
+              {studentId ? (
+                <button
+                  type="button"
+                  onClick={() => ui.openViewStudentCourses(studentId, label)}
+                  className="inline-flex items-center gap-2 rounded-lg bg-[#1e4d8c] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1a3a6b]"
+                >
+                  <BookOpen className="h-4 w-4" />
+                  My courses
+                </button>
+              ) : null}
+            </div>
+            <p className="mt-4 text-xs text-[#2d3748]/60">
+              Profile is read-only. Enroll or drop courses from Courses or Enrollments.
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -118,28 +179,21 @@ export default function StudentsPage() {
                         >
                           <BookOpen className="h-4 w-4" />
                         </IconButton>
-                        {isAdmin || isStudent ? (
-                          <IconButton
-                            label="Enroll"
-                            onClick={() => ui.openEnrollStudent(s.id, label)}
-                          >
-                            <UserPlus className="h-4 w-4" />
-                          </IconButton>
-                        ) : null}
+                        <IconButton label="Enroll" onClick={() => ui.openEnrollStudent(s.id, label)}>
+                          <UserPlus className="h-4 w-4" />
+                        </IconButton>
                         <IconButton label="Edit" onClick={() => ui.openStudentEdit(s.id)}>
                           <Pencil className="h-4 w-4" />
                         </IconButton>
-                        {isAdmin ? (
-                          <IconButton
-                            label="Delete"
-                            onClick={() =>
-                              ui.openDelete({ kind: "student", id: s.id, label: `${label} (${s.studentId})` })
-                            }
-                            danger
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </IconButton>
-                        ) : null}
+                        <IconButton
+                          label="Delete"
+                          onClick={() =>
+                            ui.openDelete({ kind: "student", id: s.id, label: `${label} (${s.studentId})` })
+                          }
+                          danger
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </IconButton>
                       </div>
                     </td>
                   </tr>

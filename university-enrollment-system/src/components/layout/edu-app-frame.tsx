@@ -118,39 +118,49 @@ export function EduAppFrame({ children }: { children: ReactNode }) {
   const ui = useMemo<EduUi>(
     () => ({
       openStudentCreate: () => {
+        if (!isAdmin) return;
         setStudentEditingId(null);
         setStudentFormOpen(true);
       },
       openStudentEdit: (id: string) => {
+        if (!isAdmin) return;
         setStudentEditingId(id);
         setStudentFormOpen(true);
       },
       openCourseCreate: () => {
+        if (!isAdmin) return;
         setCourseEditingId(null);
         setCourseFormOpen(true);
       },
       openCourseEdit: (id: string) => {
+        if (!isAdmin) return;
         setCourseEditingId(id);
         setCourseFormOpen(true);
       },
-      openEnrollStudent: (studentId: string, label: string) => {
-        setEnrollStudentId(studentId);
+      openEnrollStudent: (targetStudentId: string, label: string) => {
+        if (isStudent && studentId && targetStudentId !== studentId) return;
+        setEnrollStudentId(targetStudentId);
         setEnrollStudentLabel(label);
         setEnrollOpen(true);
       },
-      openViewStudentCourses: (studentId: string, label: string) => {
-        setViewStudentCoursesId(studentId);
+      openViewStudentCourses: (targetStudentId: string, label: string) => {
+        if (isStudent && studentId && targetStudentId !== studentId) return;
+        setViewStudentCoursesId(targetStudentId);
         setViewStudentCoursesLabel(label);
         setViewStudentCoursesOpen(true);
       },
       openViewCourseStudents: (courseId: string, label: string) => {
+        if (!isAdmin) return;
         setViewCourseStudentsId(courseId);
         setViewCourseStudentsLabel(label);
         setViewCourseStudentsOpen(true);
       },
-      openDelete: (target: DeleteTarget) => setDeleteTarget(target),
+      openDelete: (target: DeleteTarget) => {
+        if (!isAdmin) return;
+        setDeleteTarget(target);
+      },
     }),
-    []
+    [isAdmin, isStudent, studentId]
   );
 
   const closeStudentForm = useCallback(() => setStudentFormOpen(false), []);
@@ -287,15 +297,20 @@ export function EduAppFrame({ children }: { children: ReactNode }) {
         </div>
       </div>
 
-      <StudentFormModal
-        open={studentFormOpen}
-        onClose={closeStudentForm}
-        editingId={studentEditingId}
-        onSaved={() => {
-          bump();
-          toast.push({ title: studentEditingId ? "Student updated" : "Student created", variant: "success" });
-        }}
-      />
+      {isAdmin ? (
+        <StudentFormModal
+          open={studentFormOpen}
+          onClose={closeStudentForm}
+          editingId={studentEditingId}
+          onSaved={() => {
+            bump();
+            toast.push({
+              title: studentEditingId ? "Student updated" : "Student created",
+              variant: "success",
+            });
+          }}
+        />
+      ) : null}
 
       {isAdmin ? (
         <CourseFormModal
@@ -336,18 +351,20 @@ export function EduAppFrame({ children }: { children: ReactNode }) {
         />
       ) : null}
 
-      <ConfirmDeleteModal
-        open={Boolean(deleteTarget)}
-        title={deleteTarget?.kind === "student" ? "Delete student?" : "Delete course?"}
-        message={
-          deleteTarget
-            ? `This will permanently remove ${deleteTarget.label} and related enrollment records.`
-            : ""
-        }
-        onClose={closeDelete}
-        onConfirm={confirmDelete}
-        busy={deleteBusy}
-      />
+      {isAdmin ? (
+        <ConfirmDeleteModal
+          open={Boolean(deleteTarget)}
+          title={deleteTarget?.kind === "student" ? "Delete student?" : "Delete course?"}
+          message={
+            deleteTarget
+              ? `This will permanently remove ${deleteTarget.label} and related enrollment records.`
+              : ""
+          }
+          onClose={closeDelete}
+          onConfirm={confirmDelete}
+          busy={deleteBusy}
+        />
+      ) : null}
     </EduUiContext.Provider>
   );
 }

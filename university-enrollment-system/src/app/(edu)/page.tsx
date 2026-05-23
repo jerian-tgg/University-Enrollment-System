@@ -118,7 +118,7 @@ export default function DashboardPage() {
             <QuickCard
               href="/students"
               title="Student"
-              description="View and update your student profile."
+              description="View your profile and course history."
               icon={User}
             />
             <QuickCard

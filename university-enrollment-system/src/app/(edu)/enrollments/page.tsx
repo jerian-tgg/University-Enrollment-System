@@ -7,11 +7,13 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { apiDropEnrollment, apiGetEnrollments } from "@/lib/api/client";
 import type { ApiEnrollmentRow } from "@/lib/types/api";
 import { formatDate, formatGrade, gradeDisplayClassName, statusBadgeMeta } from "@/lib/format";
+import { useAuth } from "@/contexts/auth-context";
 import { useDataRefresh } from "@/contexts/data-refresh-context";
 import { useToast } from "@/contexts/toast-context";
 
 export default function EnrollmentsPage() {
   const { version, bump } = useDataRefresh();
+  const { isAdmin } = useAuth();
   const toast = useToast();
   const [rows, setRows] = useState<ApiEnrollmentRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -106,8 +108,8 @@ export default function EnrollmentsPage() {
           <table className="min-w-[1100px] w-full text-left text-sm">
             <thead className="bg-[#f8f9fc] text-xs uppercase tracking-wide text-[#2d3748]/80">
               <tr>
-                <th className="px-4 py-3 font-semibold">Student ID</th>
-                <th className="px-4 py-3 font-semibold">Student</th>
+                {isAdmin ? <th className="px-4 py-3 font-semibold">Student ID</th> : null}
+                {isAdmin ? <th className="px-4 py-3 font-semibold">Student</th> : null}
                 <th className="px-4 py-3 font-semibold">Course</th>
                 <th className="px-4 py-3 font-semibold">Title</th>
                 <th className="px-4 py-3 font-semibold">Status</th>
@@ -119,8 +121,10 @@ export default function EnrollmentsPage() {
             <tbody className="divide-y divide-[#e2e8f0]">
               {filtered.map((r) => (
                 <tr key={r.id} className="text-[#2d3748]">
-                  <td className="px-4 py-3 font-medium tabular-nums text-[#1a3a6b]">{r.studentCatalogId}</td>
-                  <td className="px-4 py-3">{r.studentName}</td>
+                  {isAdmin ? (
+                    <td className="px-4 py-3 font-medium tabular-nums text-[#1a3a6b]">{r.studentCatalogId}</td>
+                  ) : null}
+                  {isAdmin ? <td className="px-4 py-3">{r.studentName}</td> : null}
                   <td className="px-4 py-3 font-semibold text-[#1a3a6b]">{r.courseCode}</td>
                   <td className="px-4 py-3">{r.courseTitle}</td>
                   <td className="px-4 py-3">

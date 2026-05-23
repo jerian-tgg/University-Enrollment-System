@@ -1,6 +1,5 @@
 import { jsonError, jsonFromPostgrestError, jsonOk } from "@/lib/api/json";
 import { requireAdmin, requireAuth, requireStudentAccess } from "@/lib/auth/guards";
-import { isAdmin } from "@/lib/auth/permissions";
 import { getStudentSchemaMode, toStudentRow } from "@/lib/supabase/enrollment-schema";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { isUniqueViolation } from "@/lib/supabase/errors";
@@ -35,12 +34,10 @@ export async function GET(_req: Request, { params }: Params) {
 }
 
 export async function PUT(req: Request, { params }: Params) {
-  const auth = await requireAuth();
+  const auth = await requireAdmin();
   if ("response" in auth) return auth.response;
 
   const { id } = await params;
-  const denied = requireStudentAccess(auth.session, id);
-  if (denied) return denied.response;
 
   let body: unknown;
   try {
@@ -62,10 +59,7 @@ export async function PUT(req: Request, { params }: Params) {
 
   const patch: Record<string, unknown> = {};
   if (schemaMode === "full") {
-    // Only admins may change catalog student id.
-    if (isAdmin(auth.session) && parsed.data.studentId !== undefined) {
-      patch.student_id = parsed.data.studentId;
-    }
+    if (parsed.data.studentId !== undefined) patch.student_id = parsed.data.studentId;
     if (parsed.data.firstName !== undefined) patch.first_name = parsed.data.firstName;
     if (parsed.data.lastName !== undefined) patch.last_name = parsed.data.lastName;
   } else {
