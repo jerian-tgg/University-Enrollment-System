@@ -59,7 +59,6 @@ export function toCourseRow(raw: Record<string, unknown>, mode: SchemaMode): Cou
     description: (raw.description as string | null) ?? null,
     capacity: Number(raw.capacity),
     units: Number(raw.units ?? 3),
-    prerequisite_id: (raw.prerequisite_id as string | null) ?? null,
     created_at: String(raw.created_at),
   };
 }

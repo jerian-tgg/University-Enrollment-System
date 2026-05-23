@@ -1,9 +1,26 @@
-import { isPassingGrade } from "@/lib/grades";
+import {
+  buildPrereqGraph,
+  getTransitivePrerequisiteIds,
+  studentSatisfiesPrerequisites,
+  type PrereqGraph,
+} from "@/lib/prerequisites";
 import type { ApiCourseListItem, ApiStudentCourse } from "@/lib/types/api";
+
+export function buildPrereqGraphFromCourses(courses: ApiCourseListItem[]): PrereqGraph {
+  return buildPrereqGraph(
+    courses.flatMap((c) =>
+      c.prerequisiteIds.map((prerequisiteCourseId) => ({
+        courseId: c.id,
+        prerequisiteCourseId,
+      }))
+    )
+  );
+}
 
 export function isCourseAvailableForStudent(
   course: ApiCourseListItem,
-  studentCourses: ApiStudentCourse[]
+  studentCourses: ApiStudentCourse[],
+  graph?: PrereqGraph
 ): boolean {
   if (course.enrolledCount >= course.capacity) {
     return false;
@@ -15,15 +32,8 @@ export function isCourseAvailableForStudent(
     return false;
   }
 
-  if (course.prerequisiteId) {
-    const prereq = byCourseId.get(course.prerequisiteId);
-    if (!prereq || prereq.status !== "completed") {
-      return false;
-    }
-    if (!isPassingGrade(prereq.grade)) {
-      return false;
-    }
-  }
+  const g = graph ?? buildPrereqGraphFromCourses([course]);
+  const required = getTransitivePrerequisiteIds(course.id, g);
 
-  return true;
+  return studentSatisfiesPrerequisites(required, studentCourses);
 }

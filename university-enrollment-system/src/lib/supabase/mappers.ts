@@ -14,7 +14,10 @@ export function mapStudent(row: StudentRow): ApiStudent {
 
 export function mapCourseListItem(
   row: CourseRow,
-  prerequisiteCode: string | null,
+  prerequisiteIds: string[],
+  prerequisiteCodes: string[],
+  requiredPrerequisiteIds: string[],
+  requiredPrerequisiteCodes: string[],
   enrolledCount: number
 ): ApiCourseListItem {
   return {
@@ -24,8 +27,10 @@ export function mapCourseListItem(
     description: row.description,
     capacity: row.capacity,
     units: row.units,
-    prerequisiteId: row.prerequisite_id,
-    prerequisiteCode,
+    prerequisiteIds,
+    prerequisiteCodes,
+    requiredPrerequisiteIds,
+    requiredPrerequisiteCodes,
     enrolledCount,
     createdAt: row.created_at,
   };

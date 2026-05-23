@@ -16,8 +16,12 @@ export type ApiCourseListItem = {
   description: string | null;
   capacity: number;
   units: number;
-  prerequisiteId: string | null;
-  prerequisiteCode: string | null;
+  /** Direct prerequisites configured on this course. */
+  prerequisiteIds: string[];
+  prerequisiteCodes: string[];
+  /** All prerequisites including transitive chain (for enrollment checks / display). */
+  requiredPrerequisiteIds: string[];
+  requiredPrerequisiteCodes: string[];
   enrolledCount: number;
   createdAt: string;
 };

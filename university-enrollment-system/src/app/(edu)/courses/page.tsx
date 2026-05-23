@@ -51,7 +51,8 @@ export default function CoursesPage() {
     const needle = q.trim().toLowerCase();
     if (!needle) return rows;
     return rows.filter((c) => {
-      const hay = `${c.courseCode} ${c.title} ${c.prerequisiteCode ?? ""}`.toLowerCase();
+      const hay =
+        `${c.courseCode} ${c.title} ${c.prerequisiteCodes.join(" ")} ${c.requiredPrerequisiteCodes.join(" ")}`.toLowerCase();
       return hay.includes(needle);
     });
   }, [rows, q]);
@@ -95,7 +96,7 @@ export default function CoursesPage() {
                 <th className="px-4 py-3 font-semibold">Code</th>
                 <th className="px-4 py-3 font-semibold">Title</th>
                 <th className="px-4 py-3 font-semibold">Units</th>
-                <th className="px-4 py-3 font-semibold">Prerequisite</th>
+                <th className="px-4 py-3 font-semibold">Prerequisites</th>
                 <th className="px-4 py-3 font-semibold">Capacity</th>
                 <th className="px-4 py-3 font-semibold">Availability</th>
                 <th className="px-4 py-3 font-semibold text-right">Actions</th>
@@ -110,7 +111,15 @@ export default function CoursesPage() {
                     <td className="px-4 py-3 font-semibold text-[#1a3a6b]">{c.courseCode}</td>
                     <td className="px-4 py-3">{c.title}</td>
                     <td className="px-4 py-3 tabular-nums">{c.units}</td>
-                    <td className="px-4 py-3">{c.prerequisiteCode ?? "—"}</td>
+                    <td className="px-4 py-3">
+                      {c.prerequisiteCodes.length > 0 ? (
+                        <span title={`Required (incl. chain): ${c.requiredPrerequisiteCodes.join(", ") || "—"}`}>
+                          {c.prerequisiteCodes.join(", ")}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <CapacityBar enrolled={c.enrolledCount} capacity={c.capacity} />
                     </td>
