@@ -17,7 +17,6 @@ export type CourseRow = {
   description: string | null;
   capacity: number;
   units: number;
-  prerequisite_id: string | null;
   created_at: string;
 };
 

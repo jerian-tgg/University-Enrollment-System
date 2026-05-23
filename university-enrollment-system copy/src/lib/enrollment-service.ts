@@ -1,4 +1,7 @@
-import { isPassingGrade } from "@/lib/grades";
+import {
+  assertStudentMeetsCoursePrerequisites,
+  PrerequisiteNotMetError,
+} from "@/lib/prerequisites";
 import {
   countActiveEnrollmentsForCourse,
   getEnrollmentSchemaMode,
@@ -52,21 +55,24 @@ export async function assertCanEnroll(studentId: string, courseId: string): Prom
 
   const schemaMode = await getEnrollmentSchemaMode(sb);
 
-  if (c.prerequisite_id && schemaMode === "full") {
-    const { data: prereqEnroll, error: prereqErr } = await sb
-      .from("enrollments")
-      .select("grade")
-      .eq("student_id", studentId)
-      .eq("course_id", c.prerequisite_id)
-      .eq("status", "completed")
-      .maybeSingle();
-
-    if (prereqErr) throw prereqErr;
-    if (!prereqEnroll || !isPassingGrade(prereqEnroll.grade as string | number | null)) {
-      throw new ApiHttpError(
-        "Student must complete the prerequisite with a passing grade (3.0 or better) before enrolling",
-        409
-      );
+  if (schemaMode === "full") {
+    try {
+      await assertStudentMeetsCoursePrerequisites(sb, studentId, courseId);
+    } catch (e: unknown) {
+      if (e instanceof PrerequisiteNotMetError) {
+        const { data: prereqCourse } = await sb
+          .from("courses")
+          .select("course_code")
+          .eq("id", e.prerequisiteCourseId)
+          .maybeSingle();
+        const code =
+          (prereqCourse as { course_code?: string } | null)?.course_code ?? "prerequisite";
+        throw new ApiHttpError(
+          `Complete ${code} with a passing grade (3.0 or better), including its prerequisites, before enrolling`,
+          409
+        );
+      }
+      throw e;
     }
   }
 

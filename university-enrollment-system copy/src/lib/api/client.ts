@@ -101,7 +101,7 @@ export async function apiCreateCourse(body: {
   description?: string | null;
   capacity: number;
   units: number;
-  prerequisiteId?: string | null;
+  prerequisiteIds?: string[];
 }): Promise<ApiCourseListItem> {
   const res = await fetch("/api/courses", {
     method: "POST",
@@ -119,7 +119,7 @@ export async function apiUpdateCourse(
     description: string | null;
     capacity: number;
     units: number;
-    prerequisiteId: string | null;
+    prerequisiteIds: string[];
   }>
 ): Promise<ApiCourseListItem> {
   const res = await fetch(`/api/courses/${id}`, {

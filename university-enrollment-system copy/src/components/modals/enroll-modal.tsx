@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import { Spinner } from "@/components/ui/spinner";
 import { apiEnroll, apiGetCourses, apiGetStudentCourses } from "@/lib/api/client";
-import { isCourseAvailableForStudent } from "@/lib/eligibility";
+import { buildPrereqGraphFromCourses, isCourseAvailableForStudent } from "@/lib/eligibility";
 import type { ApiCourseListItem, ApiStudentCourse } from "@/lib/types/api";
 
 export function EnrollModal({
@@ -53,9 +53,11 @@ export function EnrollModal({
     };
   }, [open, studentId]);
 
+  const prereqGraph = useMemo(() => buildPrereqGraphFromCourses(courses), [courses]);
+
   const eligible = useMemo(() => {
-    return courses.filter((c) => isCourseAvailableForStudent(c, studentCourses));
-  }, [courses, studentCourses]);
+    return courses.filter((c) => isCourseAvailableForStudent(c, studentCourses, prereqGraph));
+  }, [courses, studentCourses, prereqGraph]);
 
   const allSelected = eligible.length > 0 && eligible.every((c) => selectedIds.has(c.id));
 
@@ -196,7 +198,9 @@ export function EnrollModal({
                           </span>
                           <span className="mt-0.5 block text-xs text-[#2d3748]/70">
                             {c.enrolledCount}/{c.capacity} enrolled
-                            {c.prerequisiteCode ? ` · Prereq: ${c.prerequisiteCode}` : ""}
+                            {c.requiredPrerequisiteCodes.length > 0
+                              ? ` · Requires: ${c.requiredPrerequisiteCodes.join(", ")}`
+                              : ""}
                           </span>
                         </span>
                       </label>

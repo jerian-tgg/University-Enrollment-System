@@ -1,4 +1,11 @@
 import { randomUUID } from "crypto";
+import { mapCourseWithPrerequisites } from "@/lib/course-prerequisite-map";
+import {
+  loadPrerequisiteGraph,
+  setCoursePrerequisites,
+  validatePrerequisiteSelection,
+  type PrereqGraph,
+} from "@/lib/prerequisites";
 import { jsonError, jsonFromPostgrestError, jsonOk } from "@/lib/api/json";
 import { requireAdmin, requireAuth } from "@/lib/auth/guards";
 import {
@@ -9,7 +16,6 @@ import {
 } from "@/lib/supabase/enrollment-schema";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { isUniqueViolation } from "@/lib/supabase/errors";
-import { mapCourseListItem } from "@/lib/supabase/mappers";
 import { z } from "zod";
 
 const createSchema = z.object({
@@ -18,8 +24,14 @@ const createSchema = z.object({
   description: z.string().optional().nullable(),
   capacity: z.coerce.number().int().positive(),
   units: z.coerce.number().int().positive(),
-  prerequisiteId: z.string().optional().nullable(),
+  prerequisiteIds: z.array(z.string().min(1)).optional().default([]),
 });
+
+function graphForValidation(graph: PrereqGraph, courseId: string): PrereqGraph {
+  const next = new Map(graph);
+  next.delete(courseId);
+  return next;
+}
 
 export async function GET() {
   const auth = await requireAuth();
@@ -48,14 +60,18 @@ export async function GET() {
   );
   const codeById = new Map(list.map((c) => [c.id, c.course_code]));
 
+  let graph: PrereqGraph = new Map();
+  if (schemaMode === "full") {
+    try {
+      graph = await loadPrerequisiteGraph(sb);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Failed to load prerequisites";
+      return jsonError(message, 500);
+    }
+  }
+
   return jsonOk(
-    list.map((c) =>
-      mapCourseListItem(
-        c,
-        c.prerequisite_id ? (codeById.get(c.prerequisite_id) ?? null) : null,
-        countMap.get(c.id) ?? 0
-      )
-    )
+    list.map((c) => mapCourseWithPrerequisites(c, graph, codeById, countMap.get(c.id) ?? 0))
   );
 }
 
@@ -77,15 +93,18 @@ export async function POST(req: Request) {
 
   const sb = createServerSupabase();
   const schemaMode = await getCourseSchemaMode(sb);
+  const prerequisiteIds = parsed.data.prerequisiteIds ?? [];
 
-  if (parsed.data.prerequisiteId && schemaMode === "full") {
-    const { data: prereq, error: pErr } = await sb
-      .from("courses")
-      .select("id")
-      .eq("id", parsed.data.prerequisiteId)
-      .maybeSingle();
-    if (pErr) return jsonError(pErr.message, 500);
-    if (!prereq) return jsonError("Prerequisite course not found", 400);
+  const { data: allCourses, error: listErr } = await sb.from("courses").select("id");
+  if (listErr) return jsonFromPostgrestError(listErr);
+  const validIds = new Set((allCourses ?? []).map((c) => c.id as string));
+
+  if (schemaMode === "full" && prerequisiteIds.length > 0) {
+    for (const pid of prerequisiteIds) {
+      if (!validIds.has(pid)) {
+        return jsonError("Prerequisite course not found", 400);
+      }
+    }
   }
 
   const id = randomUUID();
@@ -99,7 +118,6 @@ export async function POST(req: Request) {
           description: parsed.data.description ?? null,
           capacity: parsed.data.capacity,
           units: parsed.data.units,
-          prerequisite_id: parsed.data.prerequisiteId ?? null,
         }
       : {
           id,
@@ -119,16 +137,38 @@ export async function POST(req: Request) {
 
   const row = toCourseRow(data as Record<string, unknown>, schemaMode);
 
-  let prereqCode: string | null = null;
-  if (row.prerequisite_id && schemaMode === "full") {
-    const { data: pRow, error: pErr } = await sb
-      .from("courses")
-      .select("course_code")
-      .eq("id", row.prerequisite_id)
-      .maybeSingle();
-    if (pErr) return jsonFromPostgrestError(pErr);
-    prereqCode = pRow?.course_code ?? null;
+  if (schemaMode === "full") {
+    validIds.add(id);
+    try {
+      const graph = await loadPrerequisiteGraph(sb);
+      const validationError = validatePrerequisiteSelection(
+        id,
+        prerequisiteIds,
+        graphForValidation(graph, id),
+        validIds
+      );
+      if (validationError) {
+        await sb.from("courses").delete().eq("id", id);
+        return jsonError(validationError, 400);
+      }
+      await setCoursePrerequisites(sb, id, prerequisiteIds);
+    } catch (e: unknown) {
+      await sb.from("courses").delete().eq("id", id);
+      const message = e instanceof Error ? e.message : "Failed to save prerequisites";
+      return jsonError(message, 400);
+    }
   }
 
-  return jsonOk(mapCourseListItem(row, prereqCode, 0));
+  const { data: codeRows } = await sb
+    .from("courses")
+    .select(schemaMode === "full" ? "id, course_code" : "id, code");
+  const codeById = new Map<string, string>();
+  for (const c of codeRows ?? []) {
+    const r = c as { id: string; course_code?: string; code?: string };
+    codeById.set(r.id, r.course_code ?? r.code ?? "");
+  }
+
+  const graph = schemaMode === "full" ? await loadPrerequisiteGraph(sb) : new Map();
+
+  return jsonOk(mapCourseWithPrerequisites(row, graph, codeById, 0));
 }

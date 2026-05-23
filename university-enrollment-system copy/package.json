@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "db:migrate": "node scripts/apply-enrollment-migration.mjs",
-    "db:migrate:grade": "node scripts/apply-grade-text-migration.mjs"
+    "db:migrate:grade": "node scripts/apply-grade-text-migration.mjs",
+    "db:migrate:prerequisites": "node scripts/apply-course-prerequisites-migration.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.4",
