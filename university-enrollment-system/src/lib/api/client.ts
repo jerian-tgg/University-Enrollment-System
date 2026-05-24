@@ -50,8 +50,8 @@ export async function apiGetStudent(id: string): Promise<ApiStudent> {
 }
 
 export async function apiCreateStudent(body: {
-  studentId: string;
   firstName: string;
+  middleName?: string;
   lastName: string;
   email: string;
 }): Promise<ApiStudent> {
@@ -65,7 +65,7 @@ export async function apiCreateStudent(body: {
 
 export async function apiUpdateStudent(
   id: string,
-  body: Partial<{ studentId: string; firstName: string; lastName: string; email: string }>
+  body: Partial<{ studentId: string; firstName: string; middleName: string; lastName: string; email: string }>
 ): Promise<ApiStudent> {
   const res = await fetch(`/api/students/${id}`, {
     method: "PUT",

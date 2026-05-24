@@ -3,16 +3,30 @@ import type { PostgrestError } from "@supabase/supabase-js";
 import type { CourseRow, EnrollmentRow, StudentRow } from "@/lib/supabase/rows";
 import { isPostgrestError } from "@/lib/supabase/errors";
 
+import { parseMiddleNameFromFullName } from "@/lib/format";
+
 export type SchemaMode = "full" | "legacy";
 export type EnrollmentSchemaMode = SchemaMode;
+
+async function columnExists(
+  sb: SupabaseClient,
+  table: "students" | "courses" | "enrollments",
+  column: string
+): Promise<boolean> {
+  const { error } = await sb.from(table).select(column).limit(1);
+  return !(isPostgrestError(error) && error.code === "42703");
+}
 
 async function probeColumn(
   sb: SupabaseClient,
   table: "students" | "courses" | "enrollments",
   column: string
 ): Promise<SchemaMode> {
-  const { error } = await sb.from(table).select(column).limit(1);
-  return isPostgrestError(error) && error.code === "42703" ? "legacy" : "full";
+  return (await columnExists(sb, table, column)) ? "full" : "legacy";
+}
+
+export async function studentHasMiddleNameColumn(sb: SupabaseClient): Promise<boolean> {
+  return columnExists(sb, "students", "middle_name");
 }
 
 export async function getEnrollmentSchemaMode(sb: SupabaseClient): Promise<SchemaMode> {
@@ -29,7 +43,23 @@ export async function getCourseSchemaMode(sb: SupabaseClient): Promise<SchemaMod
 
 export function toStudentRow(raw: Record<string, unknown>, mode: SchemaMode): StudentRow {
   if (mode === "full") {
-    return raw as unknown as StudentRow;
+    const row = raw as unknown as StudentRow;
+    const firstName = String(row.first_name ?? "");
+    const lastName = String(row.last_name ?? "");
+    const storedMiddle =
+      row.middle_name != null && String(row.middle_name).trim()
+        ? String(row.middle_name).trim()
+        : null;
+    const middleName =
+      storedMiddle ??
+      parseMiddleNameFromFullName(String(raw.name ?? ""), firstName, lastName);
+
+    return {
+      ...row,
+      first_name: firstName,
+      last_name: lastName,
+      middle_name: middleName,
+    };
   }
 
   const name = String(raw.name ?? "").trim();
@@ -41,6 +71,7 @@ export function toStudentRow(raw: Record<string, unknown>, mode: SchemaMode): St
     id: String(raw.id),
     student_id: String(raw.student_id ?? raw.id),
     first_name: firstName,
+    middle_name: null,
     last_name: lastName,
     email: String(raw.email),
     created_at: String(raw.created_at),

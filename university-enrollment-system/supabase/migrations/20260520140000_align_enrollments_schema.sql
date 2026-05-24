@@ -4,6 +4,7 @@
 -- Students: name → first_name / last_name, add student_id
 ALTER TABLE "students" ADD COLUMN IF NOT EXISTS "student_id" TEXT;
 ALTER TABLE "students" ADD COLUMN IF NOT EXISTS "first_name" TEXT;
+ALTER TABLE "students" ADD COLUMN IF NOT EXISTS "middle_name" TEXT;
 ALTER TABLE "students" ADD COLUMN IF NOT EXISTS "last_name" TEXT;
 
 UPDATE "students"

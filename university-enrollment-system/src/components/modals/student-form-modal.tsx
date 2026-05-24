@@ -17,8 +17,9 @@ export function StudentFormModal({
   editingId: string | null;
   onSaved: () => void;
 }) {
-  const [studentId, setStudentId] = useState("");
+  const [existingStudentId, setExistingStudentId] = useState("");
   const [firstName, setFirstName] = useState("");
+  const [middleName, setMiddleName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -30,8 +31,9 @@ export function StudentFormModal({
     if (!open) return;
     setError(null);
     if (!editingId) {
-      setStudentId("");
+      setExistingStudentId("");
       setFirstName("");
+      setMiddleName("");
       setLastName("");
       setEmail("");
       return;
@@ -43,8 +45,9 @@ export function StudentFormModal({
       try {
         const s = await apiGetStudent(editingId);
         if (cancelled) return;
-        setStudentId(s.studentId);
+        setExistingStudentId(s.studentId);
         setFirstName(s.firstName);
+        setMiddleName(s.middleName ?? "");
         setLastName(s.lastName);
         setEmail(s.email);
       } catch (e: unknown) {
@@ -61,7 +64,7 @@ export function StudentFormModal({
 
   async function submit() {
     setError(null);
-    if (!studentId.trim() || !firstName.trim() || !lastName.trim() || !email.trim()) {
+    if (!firstName.trim() || !lastName.trim() || !email.trim()) {
       setError("All fields are required.");
       return;
     }
@@ -69,12 +72,9 @@ export function StudentFormModal({
     setSaving(true);
     try {
       if (editingId) {
-        const body = isAdmin
-          ? { studentId, firstName, lastName, email }
-          : { firstName, lastName, email };
-        await apiUpdateStudent(editingId, body);
+        await apiUpdateStudent(editingId, { firstName, middleName, lastName, email });
       } else {
-        await apiCreateStudent({ studentId, firstName, lastName, email });
+        await apiCreateStudent({ firstName, middleName, lastName, email });
       }
       onSaved();
       onClose();
@@ -86,12 +86,14 @@ export function StudentFormModal({
   }
 
   const title = editingId ? "Edit student" : "Add student";
+  const year = new Date().getFullYear();
 
   return (
     <Modal
       open={open}
       title={title}
       onClose={onClose}
+      wide
       footer={
         <>
           <button
@@ -119,34 +121,47 @@ export function StudentFormModal({
           Loading…
         </div>
       ) : (
-        <div className="grid gap-3">
+        <div className="grid min-w-0 gap-3">
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
-          {isAdmin ? (
+          {isAdmin && editingId ? (
             <label className="grid gap-1 text-sm">
               <span className="font-medium text-[#2d3748]">Student ID</span>
               <input
-                value={studentId}
-                onChange={(e) => setStudentId(e.target.value)}
-                className="rounded-lg border border-[#cbd5e1] bg-white px-3 py-2 text-[#2d3748] outline-none focus:border-[#1e4d8c]"
-                autoComplete="off"
+                value={existingStudentId}
+                readOnly
+                className="rounded-lg border border-[#cbd5e1] bg-[#f8f9fc] px-3 py-2 font-mono text-[#2d3748]"
               />
             </label>
           ) : null}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="grid gap-1 text-sm">
+          {isAdmin && !editingId ? (
+            <p className="text-xs text-[#2d3748]/70">
+              Student ID is generated automatically (e.g. {year}-4821-A).
+            </p>
+          ) : null}
+          <div className="grid min-w-0 gap-3 md:grid-cols-3">
+            <label className="grid min-w-0 gap-1 text-sm">
               <span className="font-medium text-[#2d3748]">First name</span>
               <input
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
-                className="rounded-lg border border-[#cbd5e1] bg-white px-3 py-2 text-[#2d3748] outline-none focus:border-[#1e4d8c]"
+                className="min-w-0 w-full rounded-lg border border-[#cbd5e1] bg-white px-3 py-2 text-[#2d3748] outline-none focus:border-[#1e4d8c]"
               />
             </label>
-            <label className="grid gap-1 text-sm">
+            <label className="grid min-w-0 gap-1 text-sm">
+              <span className="font-medium text-[#2d3748]">Middle name</span>
+              <input
+                value={middleName}
+                onChange={(e) => setMiddleName(e.target.value)}
+                placeholder="Optional"
+                className="min-w-0 w-full rounded-lg border border-[#cbd5e1] bg-white px-3 py-2 text-[#2d3748] outline-none focus:border-[#1e4d8c]"
+              />
+            </label>
+            <label className="grid min-w-0 gap-1 text-sm">
               <span className="font-medium text-[#2d3748]">Last name</span>
               <input
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
-                className="rounded-lg border border-[#cbd5e1] bg-white px-3 py-2 text-[#2d3748] outline-none focus:border-[#1e4d8c]"
+                className="min-w-0 w-full rounded-lg border border-[#cbd5e1] bg-white px-3 py-2 text-[#2d3748] outline-none focus:border-[#1e4d8c]"
               />
             </label>
           </div>

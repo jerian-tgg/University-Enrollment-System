@@ -6,6 +6,7 @@ export function mapStudent(row: StudentRow): ApiStudent {
     id: row.id,
     studentId: row.student_id,
     firstName: row.first_name,
+    middleName: row.middle_name,
     lastName: row.last_name,
     email: row.email,
     createdAt: row.created_at,

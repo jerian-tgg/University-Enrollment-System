@@ -1,19 +1,26 @@
 import { randomUUID } from "crypto";
 import { jsonError, jsonFromPostgrestError, jsonOk } from "@/lib/api/json";
 import { requireAdmin, requireAuth } from "@/lib/auth/guards";
-import { isAdmin, studentIdFromSession } from "@/lib/auth/permissions";
-import { getStudentSchemaMode, toStudentRow } from "@/lib/supabase/enrollment-schema";
+import { studentIdFromSession } from "@/lib/auth/permissions";
+import { generateUniqueStudentId } from "@/lib/student-id";
+import { getStudentSchemaMode, studentHasMiddleNameColumn, toStudentRow } from "@/lib/supabase/enrollment-schema";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { isUniqueViolation } from "@/lib/supabase/errors";
 import { mapStudent } from "@/lib/supabase/mappers";
+import { formatStudentFullName } from "@/lib/format";
 import { z } from "zod";
 
 const createSchema = z.object({
-  studentId: z.string().min(1),
   firstName: z.string().min(1),
+  middleName: z.string().optional(),
   lastName: z.string().min(1),
   email: z.string().email(),
 });
+
+function normalizeMiddleName(value: string | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
 
 export async function GET() {
   const auth = await requireAuth();
@@ -59,21 +66,40 @@ export async function POST(req: Request) {
   }
 
   const sb = createServerSupabase();
-  const schemaMode = await getStudentSchemaMode(sb);
+  const [schemaMode, hasMiddleNameColumn] = await Promise.all([
+    getStudentSchemaMode(sb),
+    studentHasMiddleNameColumn(sb),
+  ]);
   const id = randomUUID();
 
-  const insertPayload: Record<string, string> =
+  let studentCatalogId: string;
+  try {
+    studentCatalogId = await generateUniqueStudentId(sb);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : "Failed to generate student ID";
+    return jsonError(message, 500);
+  }
+
+  const middleName = normalizeMiddleName(parsed.data.middleName);
+  const fullName = formatStudentFullName({
+    firstName: parsed.data.firstName,
+    middleName,
+    lastName: parsed.data.lastName,
+  });
+  const insertPayload: Record<string, string | null> =
     schemaMode === "full"
       ? {
           id,
-          student_id: parsed.data.studentId,
+          student_id: studentCatalogId,
+          name: fullName,
           first_name: parsed.data.firstName,
           last_name: parsed.data.lastName,
           email: parsed.data.email,
+          ...(hasMiddleNameColumn ? { middle_name: middleName } : {}),
         }
       : {
           id,
-          name: `${parsed.data.firstName} ${parsed.data.lastName}`.trim(),
+          name: fullName,
           email: parsed.data.email,
         };
 

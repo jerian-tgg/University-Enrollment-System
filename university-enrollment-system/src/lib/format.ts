@@ -82,3 +82,40 @@ export function capacityBarColor(pct: number, isFull: boolean): string {
   if (pct >= 75) return "bg-[#c9a227]";
   return "bg-emerald-500";
 }
+
+export function formatStudentFullName(parts: {
+  firstName: string;
+  middleName?: string | null;
+  lastName: string;
+}): string {
+  return [parts.firstName, parts.middleName?.trim() || null, parts.lastName]
+    .filter((p): p is string => Boolean(p?.trim()))
+    .join(" ");
+}
+
+/** Infer middle name from legacy `name` when `middle_name` column is absent. */
+export function parseMiddleNameFromFullName(
+  fullName: string,
+  firstName: string,
+  lastName: string
+): string | null {
+  const trimmed = fullName.trim();
+  const first = firstName.trim();
+  const last = lastName.trim();
+  if (!trimmed || !first || !last) return null;
+  if (!trimmed.startsWith(first) || !trimmed.endsWith(last)) return null;
+  const middle = trimmed.slice(first.length, trimmed.length - last.length).trim();
+  return middle || null;
+}
+
+export function studentNameFromRow(row: {
+  first_name: string;
+  middle_name?: string | null;
+  last_name: string;
+}): string {
+  return formatStudentFullName({
+    firstName: row.first_name,
+    middleName: row.middle_name,
+    lastName: row.last_name,
+  });
+}

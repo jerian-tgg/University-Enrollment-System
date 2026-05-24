@@ -52,7 +52,7 @@ function LoginForm() {
           onChange={(e) => setUsername(e.target.value)}
           autoComplete="username"
           className="rounded-lg border border-[#cbd5e1] bg-white px-3 py-2 text-[#2d3748] outline-none focus:border-[#1e4d8c]"
-          placeholder="admin or student UUID"
+          placeholder="admin or student ID (e.g. 2026-0421-A)"
         />
       </label>
       <label className="grid gap-1 text-sm">
@@ -75,7 +75,7 @@ function LoginForm() {
       </button>
       <p className="text-xs text-[#2d3748]/70">
         Admin: <span className="font-mono">admin</span> / <span className="font-mono">admin</span>.
-        Students: use your account UUID as username and <span className="font-mono">user</span> as password.
+        Students: use your student ID as username and <span className="font-mono">user</span> as password.
       </p>
     </form>
   );

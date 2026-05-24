@@ -22,7 +22,7 @@ export function resolveStudentIdForMutation(session: SessionData, requestedStude
 }
 
 /** Fields a student may change on their own profile (not catalog studentId). */
-export const STUDENT_SELF_EDIT_FIELDS = ["firstName", "lastName", "email"] as const;
+export const STUDENT_SELF_EDIT_FIELDS = ["firstName", "middleName", "lastName", "email"] as const;
 
 export function studentIdFromSession(session: SessionData): string | null {
   return session.role === "student" ? session.studentId : null;

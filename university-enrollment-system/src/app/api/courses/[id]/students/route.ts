@@ -1,6 +1,6 @@
 import { jsonError, jsonFromPostgrestError, jsonOk } from "@/lib/api/json";
 import { requireAdmin } from "@/lib/auth/guards";
-import { formatGrade } from "@/lib/format";
+import { formatGrade, studentNameFromRow } from "@/lib/format";
 import {
   enrollmentOrderColumn,
   enrollmentSelectWithStudent,
@@ -59,6 +59,7 @@ export async function GET(_req: Request, { params }: Params) {
       studentId: st.id,
       studentCatalogId: st.student_id,
       firstName: st.first_name,
+      middleName: st.middle_name,
       lastName: st.last_name,
       email: st.email,
       status: enrollmentStatusOrThrow(e.status),

@@ -18,8 +18,13 @@ export async function authenticateCredentials(
 
   if (pass !== STUDENT_PASSWORD) return null;
 
+  const quoted = `"${user.replace(/"/g, '""')}"`;
   const sb = createServerSupabase();
-  const { data, error } = await sb.from("students").select("id").eq("id", user).maybeSingle();
+  const { data, error } = await sb
+    .from("students")
+    .select("id")
+    .or(`id.eq.${quoted},student_id.eq.${quoted}`)
+    .maybeSingle();
   if (error || !data) return null;
 
   return { role: "student", studentId: String(data.id) };

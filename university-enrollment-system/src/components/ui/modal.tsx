@@ -38,7 +38,7 @@ export function Modal({
         onClick={onClose}
       />
       <div
-        className={`relative z-10 m-4 w-full rounded-xl bg-white shadow-2xl ring-1 ring-black/5 ${
+        className={`relative z-10 m-4 w-full max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl bg-white shadow-2xl ring-1 ring-black/5 ${
           wide ? "max-w-3xl" : "max-w-lg"
         }`}
         role="dialog"
@@ -58,7 +58,7 @@ export function Modal({
             <X className="h-5 w-5" />
           </button>
         </div>
-        <div className="px-5 py-4">{children}</div>
+        <div className="min-w-0 px-5 py-4">{children}</div>
         {footer ? (
           <div className="flex items-center justify-end gap-2 border-t border-[#e2e8f0] px-5 py-3">
             {footer}

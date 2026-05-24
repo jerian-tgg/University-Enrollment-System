@@ -1,6 +1,7 @@
 import { jsonError, jsonFromPostgrestError, jsonOk } from "@/lib/api/json";
 import { requireAdmin } from "@/lib/auth/guards";
 import { formatGradeDisplay, isFailedGrade, isIncompleteGrade, isPassingGrade, parseGradeInput } from "@/lib/grades";
+import { studentNameFromRow } from "@/lib/format";
 import {
   enrollmentSelectWithJoins,
   getCourseSchemaMode,
@@ -102,7 +103,7 @@ export async function PUT(req: Request, { params }: Params) {
     id: mapped.id,
     studentId: st.id,
     studentCatalogId: st.student_id,
-    studentName: `${st.first_name} ${st.last_name}`,
+    studentName: studentNameFromRow(st),
     studentEmail: st.email,
     courseId: co.id,
     courseCode: co.course_code,

@@ -5,7 +5,7 @@ import { Modal } from "@/components/ui/modal";
 import { Spinner } from "@/components/ui/spinner";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { apiGetCourseStudents } from "@/lib/api/client";
-import { formatGrade, gradeDisplayClassName } from "@/lib/format";
+import { formatGrade, formatStudentFullName, gradeDisplayClassName } from "@/lib/format";
 import type { ApiCourseStudent } from "@/lib/types/api";
 
 export function ViewCourseStudentsModal({
@@ -78,7 +78,7 @@ export function ViewCourseStudentsModal({
                 <tr key={r.enrollmentId} className="text-[#2d3748]">
                   <td className="py-2 pr-4 font-medium text-[#1a3a6b]">{r.studentCatalogId}</td>
                   <td className="py-2 pr-4">
-                    {r.firstName} {r.lastName}
+                    {formatStudentFullName(r)}
                   </td>
                   <td className="py-2 pr-4">{r.email}</td>
                   <td className="py-2 pr-4">

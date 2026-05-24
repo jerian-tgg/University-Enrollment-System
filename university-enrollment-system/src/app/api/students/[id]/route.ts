@@ -1,17 +1,24 @@
 import { jsonError, jsonFromPostgrestError, jsonOk } from "@/lib/api/json";
 import { requireAdmin, requireAuth, requireStudentAccess } from "@/lib/auth/guards";
-import { getStudentSchemaMode, toStudentRow } from "@/lib/supabase/enrollment-schema";
+import { getStudentSchemaMode, studentHasMiddleNameColumn, toStudentRow } from "@/lib/supabase/enrollment-schema";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { isUniqueViolation } from "@/lib/supabase/errors";
 import { mapStudent } from "@/lib/supabase/mappers";
+import { formatStudentFullName } from "@/lib/format";
 import { z } from "zod";
 
 const updateSchema = z.object({
   studentId: z.string().min(1).optional(),
   firstName: z.string().min(1).optional(),
+  middleName: z.string().optional(),
   lastName: z.string().min(1).optional(),
   email: z.string().email().optional(),
 });
+
+function normalizeMiddleName(value: string | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -52,21 +59,38 @@ export async function PUT(req: Request, { params }: Params) {
   }
 
   const sb = createServerSupabase();
-  const schemaMode = await getStudentSchemaMode(sb);
+  const [schemaMode, hasMiddleNameColumn] = await Promise.all([
+    getStudentSchemaMode(sb),
+    studentHasMiddleNameColumn(sb),
+  ]);
   const { data: existing, error: exErr } = await sb.from("students").select("*").eq("id", id).maybeSingle();
   if (exErr) return jsonFromPostgrestError(exErr);
   if (!existing) return jsonError("Student not found", 404);
 
   const patch: Record<string, unknown> = {};
+  const current = toStudentRow(existing as Record<string, unknown>, schemaMode);
+  const firstName = parsed.data.firstName ?? current.first_name;
+  const middleName =
+    parsed.data.middleName !== undefined
+      ? normalizeMiddleName(parsed.data.middleName)
+      : current.middle_name;
+  const lastName = parsed.data.lastName ?? current.last_name;
+
   if (schemaMode === "full") {
     if (parsed.data.studentId !== undefined) patch.student_id = parsed.data.studentId;
     if (parsed.data.firstName !== undefined) patch.first_name = parsed.data.firstName;
+    if (hasMiddleNameColumn && parsed.data.middleName !== undefined) {
+      patch.middle_name = middleName;
+    }
     if (parsed.data.lastName !== undefined) patch.last_name = parsed.data.lastName;
-  } else {
-    const current = toStudentRow(existing as Record<string, unknown>, schemaMode);
-    const firstName = parsed.data.firstName ?? current.first_name;
-    const lastName = parsed.data.lastName ?? current.last_name;
-    patch.name = `${firstName} ${lastName}`.trim();
+  }
+
+  if (
+    parsed.data.firstName !== undefined ||
+    parsed.data.middleName !== undefined ||
+    parsed.data.lastName !== undefined
+  ) {
+    patch.name = formatStudentFullName({ firstName, middleName, lastName });
   }
   if (parsed.data.email !== undefined) patch.email = parsed.data.email;
 

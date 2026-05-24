@@ -5,6 +5,7 @@ import { BookOpen, Pencil, Search, Trash2, UserPlus, Users } from "lucide-react"
 import { Spinner } from "@/components/ui/spinner";
 import { formatDate } from "@/lib/format";
 import { apiGetStudents } from "@/lib/api/client";
+import { formatStudentFullName } from "@/lib/format";
 import type { ApiStudent } from "@/lib/types/api";
 import { useAuth } from "@/contexts/auth-context";
 import { useDataRefresh } from "@/contexts/data-refresh-context";
@@ -42,7 +43,8 @@ export default function StudentsPage() {
     const needle = q.trim().toLowerCase();
     if (!needle) return rows;
     return rows.filter((s) => {
-      const hay = `${s.firstName} ${s.lastName} ${s.email} ${s.studentId}`.toLowerCase();
+      const hay =
+        `${formatStudentFullName(s)} ${s.email} ${s.studentId}`.toLowerCase();
       return hay.includes(needle);
     });
   }, [rows, q]);
@@ -50,7 +52,7 @@ export default function StudentsPage() {
   const profile = isStudent && rows.length > 0 ? rows[0] : null;
 
   if (isStudent) {
-    const label = profile ? `${profile.firstName} ${profile.lastName}` : "Student";
+    const label = profile ? formatStudentFullName(profile) : "Student";
     return (
       <div className="space-y-4">
         {loading ? (
@@ -155,7 +157,7 @@ export default function StudentsPage() {
             <tbody className="divide-y divide-[#e2e8f0]">
               {filtered.map((s) => {
                 const initials = `${s.firstName[0] ?? ""}${s.lastName[0] ?? ""}`.toUpperCase();
-                const label = `${s.firstName} ${s.lastName}`;
+                const label = formatStudentFullName(s);
                 return (
                   <tr key={s.id} className="text-[#2d3748]">
                     <td className="px-4 py-3">

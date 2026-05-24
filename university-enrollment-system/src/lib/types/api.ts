@@ -4,6 +4,7 @@ export type ApiStudent = {
   id: string;
   studentId: string;
   firstName: string;
+  middleName: string | null;
   lastName: string;
   email: string;
   createdAt: string;
@@ -63,6 +64,7 @@ export type ApiCourseStudent = {
   studentId: string;
   studentCatalogId: string;
   firstName: string;
+  middleName: string | null;
   lastName: string;
   email: string;
   status: EnrollmentStatus;
