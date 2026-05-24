@@ -19,9 +19,13 @@ function randomSuffix(): StudentIdSuffix {
   return Math.random() < 0.5 ? "A" : "I";
 }
 
+function postgrestQuote(value: string): string {
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
 /**
- * Generate a unique catalog student id (`student_id` column).
- * The primary key `id` stays a UUID in Supabase; this value is what users see and log in with.
+ * Generate a unique student id used as primary key, login username, and catalog id.
+ * Format: YYYY-NNNN-A|I
  */
 export async function generateUniqueStudentId(
   sb: SupabaseClient,
@@ -29,10 +33,11 @@ export async function generateUniqueStudentId(
 ): Promise<string> {
   for (let attempt = 0; attempt < 30; attempt++) {
     const candidate = formatStudentId(year, randomSuffix(), randomSerial());
+    const quoted = postgrestQuote(candidate);
     const { data, error } = await sb
       .from("students")
-      .select("student_id")
-      .eq("student_id", candidate)
+      .select("id")
+      .or(`id.eq.${quoted},student_id.eq.${quoted}`)
       .maybeSingle();
     if (error) {
       throw new Error(postgrestErrorMessage(error));

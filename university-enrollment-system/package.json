@@ -9,7 +9,9 @@
     "lint": "eslint",
     "db:migrate": "node scripts/apply-enrollment-migration.mjs",
     "db:migrate:grade": "node scripts/apply-grade-text-migration.mjs",
-    "db:migrate:prerequisites": "node scripts/apply-course-prerequisites-migration.mjs"
+    "db:migrate:prerequisites": "node scripts/apply-course-prerequisites-migration.mjs",
+    "db:migrate:student-id": "node scripts/apply-student-id-migration.mjs",
+    "db:migrate:student-id:sql": "node scripts/print-student-id-migration-sql.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.4",

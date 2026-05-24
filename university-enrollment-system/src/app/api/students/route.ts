@@ -1,11 +1,9 @@
-import { randomUUID } from "crypto";
-import { jsonError, jsonFromPostgrestError, jsonOk } from "@/lib/api/json";
-import { requireAdmin, requireAuth } from "@/lib/auth/guards";
+import { jsonError, jsonFromPostgrestError, jsonOk } from "@/lib/api/json";import { requireAdmin, requireAuth } from "@/lib/auth/guards";
 import { studentIdFromSession } from "@/lib/auth/permissions";
 import { generateUniqueStudentId } from "@/lib/student-id";
 import { getStudentSchemaMode, studentHasMiddleNameColumn, toStudentRow } from "@/lib/supabase/enrollment-schema";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { isUniqueViolation } from "@/lib/supabase/errors";
+import { isUniqueViolation, isStudentIdUuidTypeError, STUDENT_ID_UUID_MIGRATION_HINT } from "@/lib/supabase/errors";
 import { mapStudent } from "@/lib/supabase/mappers";
 import { formatStudentFullName } from "@/lib/format";
 import { z } from "zod";
@@ -70,11 +68,9 @@ export async function POST(req: Request) {
     getStudentSchemaMode(sb),
     studentHasMiddleNameColumn(sb),
   ]);
-  const id = randomUUID();
-
-  let studentCatalogId: string;
+  let id: string;
   try {
-    studentCatalogId = await generateUniqueStudentId(sb);
+    id = await generateUniqueStudentId(sb);
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Failed to generate student ID";
     return jsonError(message, 500);
@@ -90,7 +86,7 @@ export async function POST(req: Request) {
     schemaMode === "full"
       ? {
           id,
-          student_id: studentCatalogId,
+          student_id: id,
           name: fullName,
           first_name: parsed.data.firstName,
           last_name: parsed.data.lastName,
@@ -102,12 +98,14 @@ export async function POST(req: Request) {
           name: fullName,
           email: parsed.data.email,
         };
-
   const { data, error } = await sb.from("students").insert(insertPayload).select("*").single();
 
   if (error) {
     if (isUniqueViolation(error)) {
       return jsonError("Student ID must be unique", 409);
+    }
+    if (isStudentIdUuidTypeError(error)) {
+      return jsonError(STUDENT_ID_UUID_MIGRATION_HINT, 500);
     }
     return jsonFromPostgrestError(error);
   }
